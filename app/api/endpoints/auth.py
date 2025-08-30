@@ -9,9 +9,8 @@ from app.api.deps import authenticate_user, get_current_user, get_db
 from app.core.config import settings
 from app.core.security import create_access_token, get_password_hash
 from app.models.user import User
-from app.schemas.auth import Token, UserCreate, UserResponse
+from app.schemas.auth import Token, UserCreate, UserLogin, UserResponse
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
 router = APIRouter()
@@ -46,11 +45,12 @@ def register(
 
 @router.post("/login", response_model=Token)
 def login(
+    *,
     db: Session = Depends(get_db),
-    form_data: OAuth2PasswordRequestForm = Depends(),
+    login_data: UserLogin,
 ) -> Any:
     """사용자 로그인 및 액세스 토큰 발급"""
-    user = authenticate_user(db, form_data.username, form_data.password)
+    user = authenticate_user(db, login_data.email, login_data.password)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

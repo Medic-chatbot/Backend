@@ -9,16 +9,16 @@ from app.core.security import verify_password
 from app.db.database import get_db
 from app.models.user import User
 from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
+security = HTTPBearer()
 
 
 async def get_current_user(
     db: Session = Depends(get_db),
-    token: str = Depends(oauth2_scheme),
+    credentials: HTTPAuthorizationCredentials = Depends(security),
 ) -> User:
     """현재 인증된 사용자 정보 조회"""
     credentials_exception = HTTPException(
@@ -28,6 +28,7 @@ async def get_current_user(
     )
 
     try:
+        token = credentials.credentials
         payload = jwt.decode(
             token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
         )
