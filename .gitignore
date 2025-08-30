@@ -82,10 +82,10 @@ dist/
 build/
 
 # Large data files
-docs/cleaned_hospitals.json
+docs/
 *.json.gz
 
 .gitmessage.txt
 .erd.txt
 
-docs/
+
