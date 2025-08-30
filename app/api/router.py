@@ -1,14 +1,13 @@
 """
-API 라우터
+메인 라우터 설정
 """
 
-from app.api.endpoints import auth, chat, health
+from app.api.endpoints import auth, health
 from fastapi import APIRouter
 
 # API 라우터 생성
 api_router = APIRouter()
 
-# 엔드포인트 라우터 등록
+# 각 엔드포인트 라우터 포함
 api_router.include_router(health.router, prefix="/health", tags=["health"])
-api_router.include_router(auth.router, prefix="/auth", tags=["authentication"])
-api_router.include_router(chat.router, prefix="/chat", tags=["chat"])
+api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
