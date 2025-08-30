@@ -40,6 +40,14 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
+    # 쿠키 설정
+    COOKIE_NAME: str = "access_token"
+    COOKIE_DOMAIN: Optional[str] = None  # 프로덕션에서는 실제 도메인으로 설정
+    COOKIE_PATH: str = "/"
+    COOKIE_SECURE: bool = False  # 프로덕션에서는 True로 설정
+    COOKIE_HTTPONLY: bool = True
+    COOKIE_SAMESITE: str = "lax"  # 'lax', 'strict', 'none'
+
     # CORS 설정
     ALLOWED_HOSTS: list = [
         "https://v0-medical-chatbot-ui-xi.vercel.app",
