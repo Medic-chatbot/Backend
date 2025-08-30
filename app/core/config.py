@@ -43,6 +43,7 @@ class Settings(BaseSettings):
     # CORS 설정
     ALLOWED_HOSTS: list = [
         "https://v0-medical-chatbot-ui-xi.vercel.app",
+        "https://kaist-ai-2025.vercel.app",  # 프로덕션 URL 추가
         "http://localhost:5173",
         "http://localhost:3000",
         "http://localhost:3001",

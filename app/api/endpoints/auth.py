@@ -58,29 +58,29 @@ def register(
             age=user_in.age,
             gender=user_in.gender,
         )
-        
+
         print(f"[Register] Adding user to database: {user.email}")
         logger.debug(f"[Register] Adding user to database: {user.email}")
         db.add(user)
-        
+
         print("[Register] Committing transaction...")
         logger.debug("[Register] Committing transaction...")
         db.commit()
-        
+
         print("[Register] Refreshing user object...")
         logger.debug("[Register] Refreshing user object...")
         db.refresh(user)
-        
+
         print(f"[Register] Successfully registered user: {user.email}")
         logger.debug(f"[Register] Successfully registered user: {user.email}")
-        
+
         # DB에 실제로 저장되었는지 확인
         check_user = db.query(User).filter(User.email == user_in.email).first()
         print(f"[Register] Verification - User in DB: {check_user is not None}")
         logger.debug(f"[Register] Verification - User in DB: {check_user is not None}")
-        
+
         return user
-        
+
     except Exception as e:
         print(f"[Register] Error during registration: {str(e)}")
         logger.error(f"[Register] Error during registration: {str(e)}")
@@ -127,6 +127,7 @@ def login(
 
         # 비밀번호 검증
         from app.core.security import verify_password
+
         if not verify_password(login_data.password, user.password_hash):
             print("[Login] Password verification failed")
             logger.debug("[Login] Password verification failed")
@@ -148,7 +149,7 @@ def login(
         print("[Login] Login successful, token generated")
         logger.debug("[Login] Login successful, token generated")
         return {"access_token": access_token, "token_type": "bearer", "user": user}
-        
+
     except Exception as e:
         print(f"[Login] Error during login: {str(e)}")
         logger.error(f"[Login] Error during login: {str(e)}")
