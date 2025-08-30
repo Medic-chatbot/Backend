@@ -7,6 +7,7 @@ pydantic-settings==2.0.3
 # 데이터베이스 관련
 sqlalchemy==2.0.23
 asyncpg==0.29.0
+psycopg2-binary==2.9.9
 alembic==1.12.1
 
 # 인증 관련

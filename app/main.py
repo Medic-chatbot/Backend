@@ -2,15 +2,15 @@
 의료 챗봇 서비스 FastAPI 애플리케이션
 """
 
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-import uvicorn
 import os
 from datetime import datetime
 
-from app.api.v1.router import api_router
+import uvicorn
+from app.api.router import api_router
 from app.core.config import settings
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 # FastAPI 애플리케이션 생성
 app = FastAPI(
@@ -36,7 +36,8 @@ app.add_middleware(
 )
 
 # API 라우터 등록
-app.include_router(api_router, prefix="/api/v1")
+app.include_router(api_router, prefix="/api")
+
 
 # 루트 엔드포인트
 @app.get("/")
@@ -50,6 +51,7 @@ async def root():
         "docs": "/docs",
     }
 
+
 # 헬스체크 엔드포인트
 @app.get("/health")
 async def health_check():
@@ -61,6 +63,7 @@ async def health_check():
         "version": "1.0.0",
     }
 
+
 # 예외 처리
 @app.exception_handler(404)
 async def not_found_handler(request, exc):
@@ -70,8 +73,9 @@ async def not_found_handler(request, exc):
             "error": "Not Found",
             "message": "요청한 리소스를 찾을 수 없습니다.",
             "path": str(request.url.path),
-        }
+        },
     )
+
 
 @app.exception_handler(500)
 async def internal_error_handler(request, exc):
@@ -80,8 +84,9 @@ async def internal_error_handler(request, exc):
         content={
             "error": "Internal Server Error",
             "message": "서버 내부 오류가 발생했습니다.",
-        }
+        },
     )
+
 
 if __name__ == "__main__":
     uvicorn.run(

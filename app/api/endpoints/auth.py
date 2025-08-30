@@ -2,12 +2,14 @@
 인증 관련 엔드포인트
 """
 
-from fastapi import APIRouter, HTTPException, status
-from pydantic import BaseModel, EmailStr
 from datetime import datetime
 from typing import Optional
 
+from fastapi import APIRouter, HTTPException, status
+from pydantic import BaseModel, EmailStr
+
 router = APIRouter()
+
 
 # Request/Response 모델
 class UserRegister(BaseModel):
@@ -17,9 +19,11 @@ class UserRegister(BaseModel):
     age: int
     gender: str  # 'MALE', 'FEMALE', 'OTHER'
 
+
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
+
 
 class UserResponse(BaseModel):
     id: str
@@ -29,10 +33,12 @@ class UserResponse(BaseModel):
     gender: str
     created_at: datetime
 
+
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str
     user: UserResponse
+
 
 @router.post("/register", response_model=UserResponse)
 async def register_user(user_data: UserRegister):
@@ -41,9 +47,9 @@ async def register_user(user_data: UserRegister):
     if user_data.email == "test@example.com":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="이미 존재하는 이메일입니다."
+            detail="이미 존재하는 이메일입니다.",
         )
-    
+
     # 임시 사용자 데이터
     fake_user = {
         "id": "550e8400-e29b-41d4-a716-446655440000",
@@ -53,8 +59,9 @@ async def register_user(user_data: UserRegister):
         "gender": user_data.gender,
         "created_at": datetime.now(),
     }
-    
+
     return UserResponse(**fake_user)
+
 
 @router.post("/login", response_model=TokenResponse)
 async def login_user(login_data: UserLogin):
@@ -66,7 +73,7 @@ async def login_user(login_data: UserLogin):
             detail="이메일 또는 비밀번호가 올바르지 않습니다.",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
+
     # 임시 토큰 및 사용자 데이터
     fake_token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.temporary_token"
     fake_user = {
@@ -77,12 +84,11 @@ async def login_user(login_data: UserLogin):
         "gender": "MALE",
         "created_at": datetime.now(),
     }
-    
+
     return TokenResponse(
-        access_token=fake_token,
-        token_type="bearer",
-        user=UserResponse(**fake_user)
+        access_token=fake_token, token_type="bearer", user=UserResponse(**fake_user)
     )
+
 
 @router.get("/me", response_model=UserResponse)
 async def get_current_user():
@@ -96,8 +102,9 @@ async def get_current_user():
         "gender": "MALE",
         "created_at": datetime.now(),
     }
-    
+
     return UserResponse(**fake_user)
+
 
 @router.post("/logout")
 async def logout_user():

@@ -1,9 +1,9 @@
 """
-API v1 라우터
+API 라우터
 """
 
+from app.api.endpoints import auth, chat, health
 from fastapi import APIRouter
-from app.api.v1.endpoints import health, auth, chat
 
 # API 라우터 생성
 api_router = APIRouter()
