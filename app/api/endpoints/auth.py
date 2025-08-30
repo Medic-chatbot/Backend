@@ -2,6 +2,7 @@
 인증 관련 엔드포인트
 """
 
+import logging
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -12,7 +13,6 @@ from app.models.user import User
 from app.schemas.auth import Token, UserCreate, UserLogin, UserResponse
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-import logging
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -58,7 +58,7 @@ def login(
 ) -> Any:
     """사용자 로그인 및 액세스 토큰 발급"""
     logger.debug(f"Login attempt for email: {login_data.email}")
-    
+
     # 사용자 조회
     user = db.query(User).filter(User.email == login_data.email).first()
     if not user:
@@ -68,12 +68,13 @@ def login(
             detail="이메일 또는 비밀번호가 올바르지 않습니다.",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
+
     logger.debug(f"Found user: {user.email}")
     logger.debug(f"Stored password hash: {user.password_hash}")
-    
+
     # 비밀번호 검증
     from app.core.security import verify_password
+
     if not verify_password(login_data.password, user.password_hash):
         logger.debug("Password verification failed")
         raise HTTPException(

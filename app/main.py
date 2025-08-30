@@ -2,6 +2,7 @@
 의료 챗봇 서비스 FastAPI 애플리케이션
 """
 
+import logging
 import os
 from datetime import datetime
 
@@ -11,6 +12,12 @@ from app.core.config import settings
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+
+# 로깅 설정
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 
 # FastAPI 애플리케이션 생성
 app = FastAPI(
@@ -123,5 +130,5 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=int(os.getenv("PORT", 8000)),
         reload=True,
-        log_level="info",
+        log_level="debug",
     )
