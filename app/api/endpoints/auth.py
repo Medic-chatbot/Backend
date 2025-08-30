@@ -10,7 +10,7 @@ from app.core.config import settings
 from app.core.security import create_access_token, get_password_hash
 from app.models.user import User
 from app.schemas.auth import Token, UserCreate, UserResponse
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
@@ -46,11 +46,10 @@ def register(
 
 @router.post("/login", response_model=Token)
 def login(
-    response: Response,
     db: Session = Depends(get_db),
     form_data: OAuth2PasswordRequestForm = Depends(),
 ) -> Any:
-    """사용자 로그인 및 액세스 토큰 발급 (쿠키에 저장)"""
+    """사용자 로그인 및 액세스 토큰 발급"""
     user = authenticate_user(db, form_data.username, form_data.password)
     if not user:
         raise HTTPException(
@@ -68,18 +67,6 @@ def login(
         subject=str(user.id), expires_delta=access_token_expires
     )
 
-    # 쿠키 설정
-    response.set_cookie(
-        key=settings.COOKIE_NAME,
-        value=f"Bearer {access_token}",
-        domain=settings.COOKIE_DOMAIN,
-        path=settings.COOKIE_PATH,
-        secure=settings.COOKIE_SECURE,
-        httponly=settings.COOKIE_HTTPONLY,
-        samesite=settings.COOKIE_SAMESITE,
-        max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,  # 분을 초로 변환
-    )
-
     return {"access_token": access_token, "token_type": "bearer", "user": user}
 
 
@@ -92,11 +79,6 @@ def read_users_me(
 
 
 @router.post("/logout")
-def logout(response: Response) -> Any:
-    """사용자 로그아웃 (쿠키 삭제)"""
-    response.delete_cookie(
-        key=settings.COOKIE_NAME,
-        path=settings.COOKIE_PATH,
-        domain=settings.COOKIE_DOMAIN,
-    )
+def logout() -> Any:
+    """사용자 로그아웃"""
     return {"message": "성공적으로 로그아웃되었습니다."}

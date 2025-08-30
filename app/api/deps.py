@@ -8,41 +8,24 @@ from app.core.config import settings
 from app.core.security import verify_password
 from app.db.database import get_db
 from app.models.user import User
-from fastapi import Depends, HTTPException, Request, status
-from fastapi.security import HTTPBearer
+from fastapi import Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 
-security = HTTPBearer()
-
-
-def get_token_from_cookie(request: Request) -> Optional[str]:
-    """쿠키에서 토큰 추출"""
-    cookie_authorization: str = request.cookies.get(settings.COOKIE_NAME)
-    if not cookie_authorization:
-        return None
-    
-    scheme, _, token = cookie_authorization.partition(" ")
-    if scheme.lower() != "bearer":
-        return None
-    
-    return token
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 
 async def get_current_user(
-    request: Request,
     db: Session = Depends(get_db),
+    token: str = Depends(oauth2_scheme),
 ) -> User:
-    """현재 인증된 사용자 정보 조회 (쿠키 기반)"""
+    """현재 인증된 사용자 정보 조회"""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="인증할 수 없습니다.",
         headers={"WWW-Authenticate": "Bearer"},
     )
-
-    token = get_token_from_cookie(request)
-    if not token:
-        raise credentials_exception
 
     try:
         payload = jwt.decode(
