@@ -9,7 +9,7 @@ from app.core.security import verify_password
 from app.db.database import get_db
 from app.models.user import User
 from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 
