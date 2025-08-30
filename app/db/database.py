@@ -2,16 +2,13 @@
 데이터베이스 설정
 """
 
-import os
+from app.core.config import settings
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-# 환경변수에서 DATABASE_URL 가져오기
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql://user:password@localhost:5432/medic_db"
-)
+# 설정에서 DATABASE_URL 가져오기
+DATABASE_URL = settings.DATABASE_URL
 
 # SQLAlchemy 엔진 생성
 engine = create_engine(DATABASE_URL)

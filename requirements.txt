@@ -1,8 +1,9 @@
 # FastAPI 관련
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
-pydantic==2.4.2
+pydantic[email]==2.4.2
 pydantic-settings==2.0.3
+email-validator==2.1.0
 
 # 데이터베이스 관련
 sqlalchemy==2.0.23

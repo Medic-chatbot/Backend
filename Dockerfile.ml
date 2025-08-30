@@ -12,18 +12,14 @@ RUN apt-get update && apt-get install -y \
 # 작업 디렉토리 설정
 WORKDIR /ml
 
-# Poetry 설치
-RUN curl -sSL https://install.python-poetry.org | python3 -
-
 # 의존성 파일 복사
-COPY pyproject.toml poetry.lock* ./
+COPY requirements.txt ./
 
 # 의존성 설치
-RUN poetry config virtualenvs.create false \
-    && poetry install --no-dev --no-interaction --no-ansi
+RUN pip install --no-cache-dir -r requirements.txt
 
 # ML 관련 추가 의존성 설치
-RUN poetry add torch transformers sentencepiece
+RUN pip install torch transformers sentencepiece
 
 # 애플리케이션 코드 복사
 COPY ./app/services/ml ./app/services/ml
@@ -39,4 +35,4 @@ ENV PORT=8001
 EXPOSE 8001
 
 # 애플리케이션 실행
-CMD ["poetry", "run", "uvicorn", "app.services.ml.main:app", "--host", "0.0.0.0", "--port", "8001"]
+CMD ["uvicorn", "app.services.ml.main:app", "--host", "0.0.0.0", "--port", "8001"]

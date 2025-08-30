@@ -1,11 +1,9 @@
-from logging.config import fileConfig
-
-from sqlalchemy import engine_from_config
-from sqlalchemy import pool
-
-from alembic import context
 import os
 import sys
+from logging.config import fileConfig
+
+from alembic import context
+from sqlalchemy import engine_from_config, pool
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -26,12 +24,12 @@ from app.models import *  # 모든 모델 import
 
 target_metadata = Base.metadata
 
-# 환경변수에서 DATABASE_URL 가져오기
-def get_url():
-    return os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5432/medic_db")
+
+# 설정에서 DATABASE_URL 가져오기
+from app.core.config import settings
 
 # 설정에서 URL 업데이트
-config.set_main_option("sqlalchemy.url", get_url())
+config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
@@ -77,9 +75,7 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
-        context.configure(
-            connection=connection, target_metadata=target_metadata
-        )
+        context.configure(connection=connection, target_metadata=target_metadata)
 
         with context.begin_transaction():
             context.run_migrations()

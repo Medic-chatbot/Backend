@@ -10,18 +10,16 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Poetry 설치
-RUN curl -sSL https://install.python-poetry.org | python3 -
-
 # 의존성 파일 복사
-COPY pyproject.toml poetry.lock* ./
+COPY requirements.txt ./
 
 # 의존성 설치
-RUN poetry config virtualenvs.create false \
-    && poetry install --no-dev --no-interaction --no-ansi
+RUN pip install --no-cache-dir -r requirements.txt
 
 # 애플리케이션 코드 복사
 COPY ./app ./app
+COPY ./alembic ./alembic
+COPY ./alembic.ini ./alembic.ini
 
 # 환경 변수 설정
 ENV PYTHONPATH=/app
@@ -31,4 +29,4 @@ ENV PORT=8000
 EXPOSE 8000
 
 # 애플리케이션 실행
-CMD ["poetry", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

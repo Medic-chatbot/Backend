@@ -22,17 +22,39 @@ app = FastAPI(
 )
 
 # CORS 설정 (프론트엔드 연결용)
+allowed_origins = [
+    "https://v0-medical-chatbot-ui-xi.vercel.app",
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:3000",
+    "http://13.125.229.157",
+    "http://13.125.229.157:80",
+    "https://13.125.229.157",
+]
+
+# 개발 환경에서는 모든 origin 허용
+if settings.DEBUG:
+    allowed_origins.append("*")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://v0-medical-chatbot-ui-xi.vercel.app",
-        "http://localhost:3000",
-        "http://localhost:3001",
-        "http://127.0.0.1:3000",
-    ],
+    allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"],
+    allow_headers=[
+        "Accept",
+        "Accept-Language",
+        "Content-Language",
+        "Content-Type",
+        "Authorization",
+        "X-Requested-With",
+        "Origin",
+        "Access-Control-Request-Method",
+        "Access-Control-Request-Headers",
+    ],
+    expose_headers=["*"],
 )
 
 # API 라우터 등록
@@ -62,6 +84,13 @@ async def health_check():
         "timestamp": datetime.now().isoformat(),
         "version": "1.0.0",
     }
+
+
+# CORS preflight 처리
+@app.options("/{path:path}")
+async def options_handler():
+    """CORS preflight 요청 처리"""
+    return {"message": "OK"}
 
 
 # 예외 처리

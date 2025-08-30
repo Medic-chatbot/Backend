@@ -18,9 +18,19 @@ class Settings(BaseSettings):
     # 서버 설정
     HOST: str = "0.0.0.0"
     PORT: int = 8000
+    EC2_PUBLIC_IP: str = "13.125.229.157"  # EC2 퍼블릭 IP
 
     # 데이터베이스 설정
-    DATABASE_URL: Optional[str] = None
+    DB_HOST: str = "localhost"
+    DB_PORT: int = 5432
+    DB_NAME: str = "medic_db"
+    DB_USER: str = "user"
+    DB_PASSWORD: str = "password"
+
+    @property
+    def DATABASE_URL(self) -> str:
+        """데이터베이스 URL 생성"""
+        return f"postgresql://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
 
     # Redis 설정
     REDIS_URL: Optional[str] = None
@@ -33,8 +43,10 @@ class Settings(BaseSettings):
     # CORS 설정
     ALLOWED_HOSTS: list = [
         "https://v0-medical-chatbot-ui-xi.vercel.app",
+        "http://localhost:5173",
         "http://localhost:3000",
         "http://localhost:3001",
+        "http://127.0.0.1:5173",
     ]
 
     # ML 서비스 설정
