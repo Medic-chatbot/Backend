@@ -20,7 +20,7 @@ logger = logging.getLogger("auth")
 logger.setLevel(logging.DEBUG)
 handler = logging.StreamHandler(sys.stdout)
 handler.setLevel(logging.DEBUG)
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 handler.setFormatter(formatter)
 logger.addHandler(handler)
 
@@ -34,32 +34,58 @@ def register(
     user_in: UserCreate,
 ) -> Any:
     """새로운 사용자 등록"""
-    print(f"Registering new user with email: {user_in.email}")  # 디버그용 print
-    logger.debug(f"Registering new user with email: {user_in.email}")
-    
-    user = db.query(User).filter(User.email == user_in.email).first()
-    if user:
-        logger.debug(f"User already exists: {user_in.email}")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="이미 등록된 이메일입니다.",
+    try:
+        print(f"[Register] Starting registration for email: {user_in.email}")
+        logger.debug(f"[Register] Starting registration for email: {user_in.email}")
+
+        user = db.query(User).filter(User.email == user_in.email).first()
+        if user:
+            print(f"[Register] User already exists: {user_in.email}")
+            logger.debug(f"[Register] User already exists: {user_in.email}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="이미 등록된 이메일입니다.",
+            )
+
+        hashed_password = get_password_hash(user_in.password)
+        print(f"[Register] Generated password hash: {hashed_password}")
+        logger.debug(f"[Register] Generated password hash: {hashed_password}")
+
+        user = User(
+            email=user_in.email,
+            password_hash=hashed_password,
+            nickname=user_in.nickname,
+            age=user_in.age,
+            gender=user_in.gender,
         )
-
-    hashed_password = get_password_hash(user_in.password)
-    print(f"Generated password hash: {hashed_password}")  # 디버그용 print
-    logger.debug(f"Generated password hash: {hashed_password}")
-
-    user = User(
-        email=user_in.email,
-        password_hash=hashed_password,
-        nickname=user_in.nickname,
-        age=user_in.age,
-        gender=user_in.gender,
-    )
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-    return user
+        
+        print(f"[Register] Adding user to database: {user.email}")
+        logger.debug(f"[Register] Adding user to database: {user.email}")
+        db.add(user)
+        
+        print("[Register] Committing transaction...")
+        logger.debug("[Register] Committing transaction...")
+        db.commit()
+        
+        print("[Register] Refreshing user object...")
+        logger.debug("[Register] Refreshing user object...")
+        db.refresh(user)
+        
+        print(f"[Register] Successfully registered user: {user.email}")
+        logger.debug(f"[Register] Successfully registered user: {user.email}")
+        
+        # DB에 실제로 저장되었는지 확인
+        check_user = db.query(User).filter(User.email == user_in.email).first()
+        print(f"[Register] Verification - User in DB: {check_user is not None}")
+        logger.debug(f"[Register] Verification - User in DB: {check_user is not None}")
+        
+        return user
+        
+    except Exception as e:
+        print(f"[Register] Error during registration: {str(e)}")
+        logger.error(f"[Register] Error during registration: {str(e)}")
+        db.rollback()
+        raise
 
 
 @router.post("/login", response_model=Token)
@@ -69,48 +95,64 @@ def login(
     login_data: UserLogin,
 ) -> Any:
     """사용자 로그인 및 액세스 토큰 발급"""
-    print(f"Login attempt for email: {login_data.email}")  # 디버그용 print
-    logger.debug(f"Login attempt for email: {login_data.email}")
+    try:
+        print(f"[Login] Attempt for email: {login_data.email}")
+        logger.debug(f"[Login] Attempt for email: {login_data.email}")
 
-    # 사용자 조회
-    user = db.query(User).filter(User.email == login_data.email).first()
-    if not user:
-        print(f"User not found: {login_data.email}")  # 디버그용 print
-        logger.debug(f"User not found: {login_data.email}")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="이메일 또는 비밀번호가 올바르지 않습니다.",
-            headers={"WWW-Authenticate": "Bearer"},
+        # DB 연결 확인
+        try:
+            db.execute("SELECT 1")
+            print("[Login] Database connection test: SUCCESS")
+            logger.debug("[Login] Database connection test: SUCCESS")
+        except Exception as e:
+            print(f"[Login] Database connection test: FAILED - {str(e)}")
+            logger.error(f"[Login] Database connection test: FAILED - {str(e)}")
+            raise
+
+        # 사용자 조회
+        user = db.query(User).filter(User.email == login_data.email).first()
+        if not user:
+            print(f"[Login] User not found: {login_data.email}")
+            logger.debug(f"[Login] User not found: {login_data.email}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="이메일 또는 비밀번호가 올바르지 않습니다.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        print(f"[Login] Found user: {user.email}")
+        print(f"[Login] Stored password hash: {user.password_hash}")
+        logger.debug(f"[Login] Found user: {user.email}")
+        logger.debug(f"[Login] Stored password hash: {user.password_hash}")
+
+        # 비밀번호 검증
+        from app.core.security import verify_password
+        if not verify_password(login_data.password, user.password_hash):
+            print("[Login] Password verification failed")
+            logger.debug("[Login] Password verification failed")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="이메일 또는 비밀번호가 올바르지 않습니다.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        # 로그인 시간 업데이트
+        user.last_login_at = datetime.utcnow()
+        db.commit()
+
+        access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token = create_access_token(
+            subject=str(user.id), expires_delta=access_token_expires
         )
 
-    print(f"Found user: {user.email}")  # 디버그용 print
-    print(f"Stored password hash: {user.password_hash}")  # 디버그용 print
-    logger.debug(f"Found user: {user.email}")
-    logger.debug(f"Stored password hash: {user.password_hash}")
-
-    # 비밀번호 검증
-    from app.core.security import verify_password
-    if not verify_password(login_data.password, user.password_hash):
-        print("Password verification failed")  # 디버그용 print
-        logger.debug("Password verification failed")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="이메일 또는 비밀번호가 올바르지 않습니다.",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    # 로그인 시간 업데이트
-    user.last_login_at = datetime.utcnow()
-    db.commit()
-
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        subject=str(user.id), expires_delta=access_token_expires
-    )
-
-    print("Login successful, token generated")  # 디버그용 print
-    logger.debug("Login successful, token generated")
-    return {"access_token": access_token, "token_type": "bearer", "user": user}
+        print("[Login] Login successful, token generated")
+        logger.debug("[Login] Login successful, token generated")
+        return {"access_token": access_token, "token_type": "bearer", "user": user}
+        
+    except Exception as e:
+        print(f"[Login] Error during login: {str(e)}")
+        logger.error(f"[Login] Error during login: {str(e)}")
+        raise
 
 
 @router.get("/me", response_model=UserResponse)
