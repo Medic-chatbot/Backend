@@ -3,6 +3,7 @@
 """
 
 import logging
+import sys
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -14,9 +15,16 @@ from app.schemas.auth import Token, UserCreate, UserLogin, UserResponse
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-router = APIRouter()
-logger = logging.getLogger(__name__)
+# 로거 설정
+logger = logging.getLogger("auth")
 logger.setLevel(logging.DEBUG)
+handler = logging.StreamHandler(sys.stdout)
+handler.setLevel(logging.DEBUG)
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+handler.setFormatter(formatter)
+logger.addHandler(handler)
+
+router = APIRouter()
 
 
 @router.post("/register", response_model=UserResponse)
@@ -26,16 +34,20 @@ def register(
     user_in: UserCreate,
 ) -> Any:
     """새로운 사용자 등록"""
+    print(f"Registering new user with email: {user_in.email}")  # 디버그용 print
+    logger.debug(f"Registering new user with email: {user_in.email}")
+    
     user = db.query(User).filter(User.email == user_in.email).first()
     if user:
+        logger.debug(f"User already exists: {user_in.email}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="이미 등록된 이메일입니다.",
         )
 
     hashed_password = get_password_hash(user_in.password)
-    logger.debug(f"Registering user with email: {user_in.email}")
-    logger.debug(f"Password hash: {hashed_password}")
+    print(f"Generated password hash: {hashed_password}")  # 디버그용 print
+    logger.debug(f"Generated password hash: {hashed_password}")
 
     user = User(
         email=user_in.email,
@@ -57,11 +69,13 @@ def login(
     login_data: UserLogin,
 ) -> Any:
     """사용자 로그인 및 액세스 토큰 발급"""
+    print(f"Login attempt for email: {login_data.email}")  # 디버그용 print
     logger.debug(f"Login attempt for email: {login_data.email}")
 
     # 사용자 조회
     user = db.query(User).filter(User.email == login_data.email).first()
     if not user:
+        print(f"User not found: {login_data.email}")  # 디버그용 print
         logger.debug(f"User not found: {login_data.email}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -69,13 +83,15 @@ def login(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    print(f"Found user: {user.email}")  # 디버그용 print
+    print(f"Stored password hash: {user.password_hash}")  # 디버그용 print
     logger.debug(f"Found user: {user.email}")
     logger.debug(f"Stored password hash: {user.password_hash}")
 
     # 비밀번호 검증
     from app.core.security import verify_password
-
     if not verify_password(login_data.password, user.password_hash):
+        print("Password verification failed")  # 디버그용 print
         logger.debug("Password verification failed")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -92,6 +108,7 @@ def login(
         subject=str(user.id), expires_delta=access_token_expires
     )
 
+    print("Login successful, token generated")  # 디버그용 print
     logger.debug("Login successful, token generated")
     return {"access_token": access_token, "token_type": "bearer", "user": user}
 

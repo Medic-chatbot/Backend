@@ -15,8 +15,7 @@ from fastapi.responses import JSONResponse
 
 # 로깅 설정
 logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 
 # FastAPI 애플리케이션 생성
