@@ -5,7 +5,9 @@
 import uuid
 from datetime import datetime
 
+from app.db.base import Base
 from sqlalchemy import (
+    JSON,
     Boolean,
     Column,
     Date,
@@ -13,14 +15,11 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     Integer,
-    JSON,
     String,
     Text,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
-
-from app.db.base import Base
 
 
 class Hospital(Base):
@@ -118,6 +117,10 @@ class HospitalRecommendation(Base):
     deleted_at = Column(DateTime, nullable=True)
 
     # 관계 설정
-    inference_result = relationship("ModelInferenceResult", back_populates="hospital_recommendations")
+    inference_result = relationship(
+        "ModelInferenceResult", back_populates="hospital_recommendations"
+    )
     hospital = relationship("Hospital", back_populates="recommendations")
-    user_location = relationship("UserLocation", back_populates="hospital_recommendations")
+    user_location = relationship(
+        "UserLocation", back_populates="hospital_recommendations"
+    )

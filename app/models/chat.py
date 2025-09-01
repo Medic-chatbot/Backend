@@ -5,11 +5,10 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Column, DateTime, ForeignKey, String, Text, Boolean
+from app.db.base import Base
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
-
-from app.db.base import Base
 
 
 class ChatRoom(Base):
@@ -61,4 +60,6 @@ class ChatMessage(Base):
 
     # 관계 설정
     chat_room = relationship("ChatRoom", back_populates="messages")
-    inference_result = relationship("ModelInferenceResult", back_populates="chat_message", uselist=False)
+    inference_result = relationship(
+        "ModelInferenceResult", back_populates="chat_message", uselist=False
+    )

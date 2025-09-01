@@ -5,11 +5,10 @@
 import uuid
 from datetime import datetime
 
+from app.db.base import Base
 from sqlalchemy import Column, DateTime, Float, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
-
-from app.db.base import Base
 
 
 class ModelInferenceResult(Base):
@@ -24,7 +23,7 @@ class ModelInferenceResult(Base):
         nullable=False,
     )
     input_text = Column(Text, nullable=False)
-    
+
     # 1순위 예측
     first_disease_id = Column(
         UUID(as_uuid=True),
@@ -32,7 +31,7 @@ class ModelInferenceResult(Base):
         nullable=False,
     )
     first_disease_score = Column(Float, nullable=False)
-    
+
     # 2순위 예측
     second_disease_id = Column(
         UUID(as_uuid=True),
@@ -40,7 +39,7 @@ class ModelInferenceResult(Base):
         nullable=True,
     )
     second_disease_score = Column(Float, nullable=True)
-    
+
     # 3순위 예측
     third_disease_id = Column(
         UUID(as_uuid=True),
@@ -48,7 +47,7 @@ class ModelInferenceResult(Base):
         nullable=True,
     )
     third_disease_score = Column(Float, nullable=True)
-    
+
     inference_time = Column(Float, nullable=True)
 
     # 타임스탬프
@@ -69,4 +68,6 @@ class ModelInferenceResult(Base):
     third_disease = relationship(
         "Disease", foreign_keys=[third_disease_id], back_populates="third_predictions"
     )
-    hospital_recommendations = relationship("HospitalRecommendation", back_populates="inference_result")
+    hospital_recommendations = relationship(
+        "HospitalRecommendation", back_populates="inference_result"
+    )

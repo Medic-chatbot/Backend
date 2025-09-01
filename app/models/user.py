@@ -5,11 +5,19 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Column, DateTime, Float, Integer, String, Text, Boolean
+from app.db.base import Base
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
-
-from app.db.base import Base
 
 
 class User(Base):
@@ -62,4 +70,6 @@ class UserLocation(Base):
 
     # 관계 설정
     user = relationship("User", back_populates="locations")
-    hospital_recommendations = relationship("HospitalRecommendation", back_populates="user_location")
+    hospital_recommendations = relationship(
+        "HospitalRecommendation", back_populates="user_location"
+    )
