@@ -33,6 +33,11 @@ class User(Base):
     gender = Column(String, nullable=False)  # 'MALE', 'FEMALE', 'OTHER'
     last_login_at = Column(DateTime, nullable=True)
 
+    # 사용자 위치 정보 (카카오 지오코딩 결과)
+    road_address = Column(Text, nullable=True)  # 도로명 주소
+    latitude = Column(Float, nullable=True)  # 위도
+    longitude = Column(Float, nullable=True)  # 경도
+
     # 타임스탬프
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(
@@ -43,6 +48,9 @@ class User(Base):
     # 관계 설정
     locations = relationship("UserLocation", back_populates="user")
     chat_rooms = relationship("ChatRoom", back_populates="user")
+    hospital_recommendations = relationship(
+        "HospitalRecommendation", back_populates="user"
+    )
 
 
 class UserLocation(Base):
@@ -70,6 +78,3 @@ class UserLocation(Base):
 
     # 관계 설정
     user = relationship("User", back_populates="locations")
-    hospital_recommendations = relationship(
-        "HospitalRecommendation", back_populates="user_location"
-    )

@@ -3,6 +3,7 @@
 """
 
 from app.models.chat import ChatMessage, ChatRoom
+from app.models.department import Department, DepartmentDisease, HospitalDepartment
 from app.models.equipment import (
     EquipmentDisease,
     MedicalEquipmentCategory,

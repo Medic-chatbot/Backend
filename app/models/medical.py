@@ -44,3 +44,4 @@ class Disease(Base):
         back_populates="third_disease",
     )
     equipment_diseases = relationship("EquipmentDisease", back_populates="disease")
+    department_diseases = relationship("DepartmentDisease", back_populates="disease")

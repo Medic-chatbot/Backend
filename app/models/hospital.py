@@ -48,6 +48,7 @@ class Hospital(Base):
     # 관계 설정
     equipment = relationship("HospitalEquipment", back_populates="hospital")
     recommendations = relationship("HospitalRecommendation", back_populates="hospital")
+    hospital_departments = relationship("HospitalDepartment", back_populates="hospital")
 
 
 class HospitalEquipment(Base):
@@ -100,14 +101,17 @@ class HospitalRecommendation(Base):
         ForeignKey("hospitals.id", ondelete="CASCADE"),
         nullable=False,
     )
-    user_location_id = Column(
+    user_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("user_locations.id", ondelete="CASCADE"),
+        ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
     )
-    distance = Column(Float, nullable=False)
-    recommended_reason = Column(Text, nullable=True)
-    recommendation_score = Column(Float, nullable=True)
+    distance = Column(Float, nullable=False)  # 사용자 위치로부터의 거리 (km)
+    rank = Column(Integer, nullable=False)  # 추천 순위 (1, 2, 3)
+    recommendation_score = Column(Float, nullable=True)  # 종합 추천 점수
+    department_match = Column(Boolean, default=False)  # 진료과 매칭 여부
+    equipment_match = Column(Boolean, default=False)  # 장비 매칭 여부
+    recommended_reason = Column(Text, nullable=True)  # 추천 이유
 
     # 타임스탬프
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
@@ -121,6 +125,4 @@ class HospitalRecommendation(Base):
         "ModelInferenceResult", back_populates="hospital_recommendations"
     )
     hospital = relationship("Hospital", back_populates="recommendations")
-    user_location = relationship(
-        "UserLocation", back_populates="hospital_recommendations"
-    )
+    user = relationship("User", back_populates="hospital_recommendations")

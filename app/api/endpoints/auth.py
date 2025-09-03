@@ -11,7 +11,8 @@ from app.api.deps import authenticate_user, get_current_user, get_db
 from app.core.config import settings
 from app.core.security import create_access_token, get_password_hash
 from app.models.user import User
-from app.schemas.auth import Token, UserCreate, UserLogin, UserResponse
+from app.schemas.auth import Token, UserCreate, UserLogin
+from app.schemas.user import UserResponse
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -57,6 +58,9 @@ def register(
             nickname=user_in.nickname,
             age=user_in.age,
             gender=user_in.gender,
+            road_address=user_in.road_address,
+            latitude=user_in.latitude,
+            longitude=user_in.longitude,
         )
 
         print(f"[Register] Adding user to database: {user.email}")
@@ -99,16 +103,6 @@ def login(
         print(f"[Login] Attempt for email: {login_data.email}")
         logger.debug(f"[Login] Attempt for email: {login_data.email}")
 
-        # DB 연결 확인
-        try:
-            db.execute("SELECT 1")
-            print("[Login] Database connection test: SUCCESS")
-            logger.debug("[Login] Database connection test: SUCCESS")
-        except Exception as e:
-            print(f"[Login] Database connection test: FAILED - {str(e)}")
-            logger.error(f"[Login] Database connection test: FAILED - {str(e)}")
-            raise
-
         # 사용자 조회
         user = db.query(User).filter(User.email == login_data.email).first()
         if not user:
@@ -128,7 +122,7 @@ def login(
         # 비밀번호 검증
         from app.core.security import verify_password
 
-        if not verify_password(login_data.password, user.password_hash):
+        if not verify_password(login_data.password, str(user.password_hash)):
             print("[Login] Password verification failed")
             logger.debug("[Login] Password verification failed")
             raise HTTPException(
@@ -138,7 +132,7 @@ def login(
             )
 
         # 로그인 시간 업데이트
-        user.last_login_at = datetime.utcnow()
+        setattr(user, "last_login_at", datetime.utcnow())
         db.commit()
 
         access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -148,7 +142,22 @@ def login(
 
         print("[Login] Login successful, token generated")
         logger.debug("[Login] Login successful, token generated")
-        return {"access_token": access_token, "token_type": "bearer", "user": user}
+
+        # UserResponse 변환을 위해 user 객체를 dict로 변환
+        user_dict = {
+            "id": user.id,
+            "email": user.email,
+            "nickname": user.nickname,
+            "age": user.age,
+            "gender": user.gender,
+            "road_address": getattr(user, "road_address", None),
+            "latitude": getattr(user, "latitude", None),
+            "longitude": getattr(user, "longitude", None),
+            "created_at": user.created_at,
+            "updated_at": user.updated_at,
+        }
+
+        return {"access_token": access_token, "token_type": "bearer", "user": user_dict}
 
     except Exception as e:
         print(f"[Login] Error during login: {str(e)}")

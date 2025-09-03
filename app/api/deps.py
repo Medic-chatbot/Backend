@@ -32,7 +32,7 @@ async def get_current_user(
         payload = jwt.decode(
             token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
         )
-        user_id: str = payload.get("sub")
+        user_id = payload.get("sub")
         if user_id is None:
             raise credentials_exception
     except JWTError:
@@ -49,6 +49,6 @@ def authenticate_user(db: Session, email: str, password: str) -> Optional[User]:
     user = db.query(User).filter(User.email == email).first()
     if not user:
         return None
-    if not verify_password(password, user.password_hash):
+    if not verify_password(password, str(user.password_hash)):
         return None
     return user

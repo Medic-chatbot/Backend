@@ -2,10 +2,9 @@
 인증 관련 스키마
 """
 
-from datetime import datetime
 from typing import Optional
-from uuid import UUID
 
+from app.schemas.user import UserResponse
 from pydantic import BaseModel, EmailStr
 
 
@@ -22,6 +21,9 @@ class UserCreate(UserBase):
     """사용자 생성 시 필요한 정보"""
 
     password: str
+    road_address: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
 
 
 class UserLogin(BaseModel):
@@ -35,17 +37,9 @@ class UserUpdate(UserBase):
     """사용자 정보 업데이트 시 필요한 정보"""
 
     password: Optional[str] = None
-
-
-class UserResponse(UserBase):
-    """사용자 정보 응답"""
-
-    id: UUID
-    created_at: datetime
-    updated_at: datetime
-
-    class Config:
-        from_attributes = True
+    road_address: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
 
 
 class Token(BaseModel):
