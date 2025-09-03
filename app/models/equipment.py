@@ -17,8 +17,12 @@ class MedicalEquipmentCategory(Base):
     __tablename__ = "medical_equipment_categories"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    name = Column(String, unique=True, nullable=False)
-    description = Column(Text, nullable=True)
+    name = Column(
+        String, unique=True, nullable=False
+    )  # 장비대분류명 (예: 제세동기, 일반엑스선촬영장치)
+    code = Column(
+        String, unique=True, nullable=False
+    )  # 장비대분류코드 (예: D205, B101)
 
     # 타임스탬프
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
@@ -44,8 +48,10 @@ class MedicalEquipmentSubcategory(Base):
         ForeignKey("medical_equipment_categories.id", ondelete="CASCADE"),
         nullable=False,
     )
-    name = Column(String, nullable=False)
-    description = Column(Text, nullable=True)
+    name = Column(
+        String, nullable=False
+    )  # 장비세분류명 (예: 제세동기, 일반엑스선촬영장치(아날로그))
+    code = Column(String, nullable=False)  # 장비세분류코드 (예: D20500, B10101)
 
     # 타임스탬프
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)

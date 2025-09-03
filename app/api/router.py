@@ -2,7 +2,7 @@
 메인 라우터 설정
 """
 
-from app.api.endpoints import auth, health, users
+from app.api.endpoints import auth, health, medical, users
 from fastapi import APIRouter
 
 # API 라우터 생성
@@ -12,3 +12,4 @@ api_router = APIRouter()
 api_router.include_router(health.router, prefix="/health", tags=["health"])
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 api_router.include_router(users.router, prefix="/users", tags=["users"])
+api_router.include_router(medical.router, prefix="/medical", tags=["medical"])

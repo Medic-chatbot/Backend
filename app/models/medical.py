@@ -45,3 +45,4 @@ class Disease(Base):
     )
     equipment_diseases = relationship("EquipmentDisease", back_populates="disease")
     department_diseases = relationship("DepartmentDisease", back_populates="disease")
+    chat_rooms = relationship("ChatRoom", back_populates="final_disease")

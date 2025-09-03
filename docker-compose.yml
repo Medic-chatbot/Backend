@@ -18,6 +18,9 @@ services:
       - "8000:8000"
     env_file:
       - .env
+    volumes:
+      # Alembic migration 파일 자동 동기화
+      - ./alembic/versions:/app/alembic/versions
     networks:
       - medic-network
 

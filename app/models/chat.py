@@ -25,6 +25,14 @@ class ChatRoom(Base):
     title = Column(String, nullable=False)
     is_active = Column(Boolean, default=True)
 
+    # 최종 진단 정보 (채팅에서 마지막으로 진단된 질환)
+    final_disease_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("diseases.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
     # 타임스탬프
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(
@@ -35,6 +43,7 @@ class ChatRoom(Base):
     # 관계 설정
     user = relationship("User", back_populates="chat_rooms")
     messages = relationship("ChatMessage", back_populates="chat_room")
+    final_disease = relationship("Disease", back_populates="chat_rooms")
 
 
 class ChatMessage(Base):

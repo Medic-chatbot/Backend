@@ -7,7 +7,6 @@ import sys
 
 from app.core.config import settings
 from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
 # 로거 설정
@@ -35,8 +34,8 @@ except Exception as e:
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 logger.debug("Database session factory created")
 
-# Base 클래스 생성
-Base = declarative_base()
+# Base 클래스는 base.py에서 import
+# (중복 정의 방지)
 
 
 def get_db():

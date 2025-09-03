@@ -32,11 +32,19 @@ class Hospital(Base):
     address = Column(Text, nullable=False)
     latitude = Column(Float, nullable=False)
     longitude = Column(Float, nullable=False)
-    type = Column(String, nullable=True)
-    department = Column(String, nullable=True)
+    # 실제 데이터 기반 필드들
+    encrypted_code = Column(String, unique=True, nullable=False)  # 암호화된요양기호
+    hospital_type_code = Column(String, nullable=True)  # 종별코드
+    hospital_type_name = Column(
+        String, nullable=True
+    )  # 종별코드명 (의원, 병원, 종합병원)
+    region_code = Column(String, nullable=True)  # 시도코드
+    region_name = Column(String, nullable=True)  # 시도명
+    district_code = Column(String, nullable=True)  # 시군구코드
+    district_name = Column(String, nullable=True)  # 시군구명
+    postal_code = Column(String, nullable=True)  # 우편번호
     phone = Column(String, nullable=True)
     website = Column(String, nullable=True)
-    operating_hours = Column(JSON, nullable=True)
 
     # 타임스탬프
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
@@ -67,7 +75,10 @@ class HospitalEquipment(Base):
         ForeignKey("medical_equipment_subcategories.id", ondelete="CASCADE"),
         nullable=False,
     )
-    quantity = Column(Integer, default=1, nullable=False)
+    # 실제 데이터 기반 필드들
+    model_name = Column(String, nullable=True)  # 모델명 (예: HeartOn A15-G4)
+    license_number = Column(String, nullable=True)  # 장비허가번호 (예: 제허14-1593호)
+    quantity = Column(Integer, default=1, nullable=False)  # 장비수
     installation_date = Column(Date, nullable=True)
     is_operational = Column(Boolean, default=True)
 

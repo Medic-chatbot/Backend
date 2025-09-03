@@ -18,8 +18,6 @@ class Department(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String, unique=True, nullable=False)
-    description = Column(Text, nullable=True)
-    code = Column(String, unique=True, nullable=True)  # 진료과 코드
 
     # 타임스탬프
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
