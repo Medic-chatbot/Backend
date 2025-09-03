@@ -7,6 +7,7 @@ from typing import Optional
 
 from app.models.user import User
 from app.schemas.user import UserLocationUpdate
+from app.services.geocoding_service import GeocodingService
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
@@ -16,34 +17,56 @@ class UserService:
     """사용자 관련 비즈니스 로직"""
 
     @staticmethod
-    def update_user_location(
+    async def update_user_location(
         db: Session, user: User, location_data: UserLocationUpdate
     ) -> User:
         """
-        사용자 위치 정보 업데이트
+        사용자 위치 정보 업데이트 (자동 지오코딩)
 
         Args:
             db: 데이터베이스 세션
             user: 사용자 객체
-            location_data: 위치 정보 데이터
+            location_data: 위치 정보 데이터 (도로명 주소만)
 
         Returns:
             User: 업데이트된 사용자 객체
+
+        Raises:
+            ValueError: 지오코딩 실패 시
         """
         try:
-            logger.info(f"Updating location for user {user.id}")
+            logger.info(
+                f"Geocoding address for user {user.id}: {location_data.road_address}"
+            )
+
+            # 카카오 지오코딩으로 위도/경도 변환
+            coordinates = await GeocodingService.geocode_address(
+                location_data.road_address
+            )
+
+            if not coordinates:
+                raise ValueError(
+                    f"주소를 찾을 수 없습니다: {location_data.road_address}"
+                )
+
+            latitude, longitude = coordinates
 
             # 사용자 위치 정보 업데이트
             setattr(user, "road_address", location_data.road_address)
-            setattr(user, "latitude", location_data.latitude)
-            setattr(user, "longitude", location_data.longitude)
+            setattr(user, "latitude", latitude)
+            setattr(user, "longitude", longitude)
 
             db.commit()
             db.refresh(user)
 
-            logger.info(f"Successfully updated location for user {user.id}")
+            logger.info(
+                f"Successfully updated location for user {user.id}: ({latitude}, {longitude})"
+            )
             return user
 
+        except ValueError:
+            # 지오코딩 실패는 그대로 다시 발생
+            raise
         except Exception as e:
             logger.error(f"Error updating user location: {str(e)}")
             db.rollback()

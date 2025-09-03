@@ -12,4 +12,4 @@ from app.schemas.medical import (
     ModelInferenceRequest,
     ModelInferenceResponse,
 )
-from app.schemas.user import UserLocationResponse, UserLocationUpdate, UserResponse
+from app.schemas.user import UserLocationUpdate, UserResponse

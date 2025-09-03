@@ -26,27 +26,31 @@ def get_user_profile(
 
 
 @router.put("/location", response_model=UserResponse)
-def update_user_location(
+async def update_user_location(
     *,
     db: Session = Depends(get_db),
     location_data: UserLocationUpdate,
     current_user: User = Depends(get_current_user),
 ) -> Any:
     """
-    사용자 위치 정보 업데이트
+    사용자 위치 정보 업데이트 (자동 지오코딩)
 
-    카카오 우편번호 서비스에서 받은 도로명 주소와
-    카카오 지오코딩 API에서 변환된 위도/경도를 저장합니다.
+    프론트엔드에서 도로명 주소만 전송하면
+    백엔드에서 카카오 지오코딩 API를 통해 자동으로 위도/경도를 변환하여 저장합니다.
     """
     try:
-        logger.info(f"User {current_user.id} updating location")
+        logger.info(f"User {current_user.id} updating location with geocoding")
 
-        updated_user = UserService.update_user_location(
+        updated_user = await UserService.update_user_location(
             db=db, user=current_user, location_data=location_data
         )
 
         return updated_user
 
+    except ValueError as e:
+        # 지오코딩 실패 (주소를 찾을 수 없음)
+        logger.warning(f"Geocoding failed for user {current_user.id}: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         logger.error(f"Error updating user location: {str(e)}")
         raise HTTPException(

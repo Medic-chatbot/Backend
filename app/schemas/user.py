@@ -10,13 +10,12 @@ from pydantic import BaseModel, Field
 
 
 class UserLocationUpdate(BaseModel):
-    """사용자 위치 정보 업데이트"""
+    """사용자 위치 정보 업데이트 (도로명 주소만 → 백엔드에서 자동 지오코딩)"""
 
     road_address: str = Field(
-        ..., description="도로명 주소 (다음 우편번호 서비스 결과)"
+        ...,
+        description="도로명 주소 (다음 우편번호 서비스 결과, 백엔드에서 자동으로 위도/경도 변환)",
     )
-    latitude: float = Field(..., description="위도 (카카오 지오코딩 결과)")
-    longitude: float = Field(..., description="경도 (카카오 지오코딩 결과)")
 
 
 class UserResponse(BaseModel):
@@ -32,21 +31,6 @@ class UserResponse(BaseModel):
     longitude: Optional[float] = None
     created_at: datetime
     updated_at: datetime
-
-    class Config:
-        from_attributes = True
-
-
-class UserLocationResponse(BaseModel):
-    """사용자 위치 정보 응답"""
-
-    id: UUID
-    user_id: UUID
-    latitude: float
-    longitude: float
-    address: Optional[str] = None
-    is_current: bool
-    created_at: datetime
 
     class Config:
         from_attributes = True

@@ -57,6 +57,9 @@ class Settings(BaseSettings):
     # ML 서비스 설정
     ML_SERVICE_URL: str = "http://ml:8001"
 
+    # 카카오 API 설정
+    KAKAO_REST_API_KEY: Optional[str] = None
+
     class Config:
         env_file = ".env"
         case_sensitive = True
