@@ -327,7 +327,8 @@ class HospitalRecommendationRequest(BaseModel):
     """병원 추천 요청"""
 
     inference_result_id: int = Field(..., description="모델 추론 결과 ID")
-    user_id: int = Field(..., description="사용자 ID")
+    chat_room_id: int = Field(..., description="채팅방 ID")
+    user_id: str = Field(..., description="사용자 ID (UUID)")
     max_distance: Optional[float] = Field(20.0, description="최대 검색 거리 (km)")
     limit: Optional[int] = Field(3, description="추천 병원 수")
 
@@ -355,7 +356,10 @@ class HospitalRecommendationResponse(BaseModel):
     """병원 추천 결과 응답"""
 
     inference_result_id: int
-    user_id: int
+    chat_room_id: int
+    user_id: str
+    user_nickname: str
+    user_location: str
     final_disease: Dict[str, Any]
     total_candidates: int
     recommendations: List[RecommendedHospitalResponse]

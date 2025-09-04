@@ -324,9 +324,20 @@ def recommend_hospitals(
             }
             recommended_hospitals.append(hospital_data)
 
+        # 사용자 정보 조회
+        from uuid import UUID
+
+        user_uuid = UUID(request_data.user_id)
+        from app.models.user import User
+
+        user = db.query(User).filter(User.id == user_uuid).first()
+
         return {
             "inference_result_id": request_data.inference_result_id,
-            "user_id": recommendations[0].user_id,
+            "chat_room_id": request_data.chat_room_id,
+            "user_id": request_data.user_id,
+            "user_nickname": user.nickname if user else "",
+            "user_location": user.road_address if user and user.road_address else "",
             "final_disease": {
                 "id": final_disease.id,
                 "name": final_disease.name,
@@ -522,7 +533,7 @@ def get_equipment_subcategory_detail(
             ],
         }
 
-        # 임시: dict로 반환해서 문제 확인
+        
         return response_data
 
     except HTTPException:

@@ -101,7 +101,7 @@ class HospitalRecommendation(Base):
 
     __tablename__ = "hospital_recommendations"
 
-    id = Column(Integer, primary_key=True)  # 정수형 ID로 변경
+    id = Column(Integer, primary_key=True, autoincrement=True)  # 정수형 ID로 변경
     inference_result_id = Column(
         Integer,  # ModelInferenceResult의 id가 정수형으로 변경됨
         ForeignKey("model_inference_results.id", ondelete="CASCADE"),

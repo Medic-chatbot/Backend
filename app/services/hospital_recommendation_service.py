@@ -232,7 +232,10 @@ class HospitalRecommendationService:
             raise ValueError(f"Inference result not found: {inference_result_id}")
 
         # 2. 사용자 위치 정보 조회
-        user = db.query(User).filter(User.id == user_id).first()
+        from uuid import UUID
+
+        user_id_uuid = UUID(user_id)
+        user = db.query(User).filter(User.id == user_id_uuid).first()
         if not user or not user.latitude or not user.longitude:
             raise ValueError(f"User location not found: {user_id}")
 
@@ -303,7 +306,7 @@ class HospitalRecommendationService:
             recommendation = HospitalRecommendation(
                 inference_result_id=inference_result_id,
                 hospital_id=hospital_data["hospital"].id,
-                user_id=user_id,
+                user_id=user_id_uuid,
                 distance=hospital_data["distance"],
                 rank=rank,
                 recommendation_score=hospital_data["score"],
