@@ -48,18 +48,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"],
-    allow_headers=[
-        "Accept",
-        "Accept-Language",
-        "Content-Language",
-        "Content-Type",
-        "Authorization",
-        "X-Requested-With",
-        "Origin",
-        "Access-Control-Request-Method",
-        "Access-Control-Request-Headers",
-    ],
+    allow_methods=["*"],  # 모든 HTTP 메소드 허용
+    allow_headers=["*"],  # 모든 헤더 허용
     expose_headers=["*"],
 )
 
@@ -92,11 +82,7 @@ async def health_check():
     }
 
 
-# CORS preflight 처리
-@app.options("/{path:path}")
-async def options_handler():
-    """CORS preflight 요청 처리"""
-    return {"message": "OK"}
+# CORS preflight는 CORSMiddleware가 처리하므로 별도 핸들러 불필요
 
 
 # 예외 처리

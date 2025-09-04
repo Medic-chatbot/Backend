@@ -51,7 +51,7 @@ class ChatMessage(Base):
 
     __tablename__ = "chat_messages"
 
-    id = Column(Integer, primary_key=True)  # 정수형 ID로 변경
+    id = Column(Integer, primary_key=True, autoincrement=True)  # 정수형 ID로 변경
     chat_room_id = Column(
         Integer,  # ChatRoom의 id가 Integer로 변경됨
         ForeignKey("chat_rooms.id", ondelete="CASCADE"),
