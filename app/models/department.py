@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 
 from app.db.base import Base
-from sqlalchemy import Column, DateTime, ForeignKey, String, Text
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -16,7 +16,7 @@ class Department(Base):
 
     __tablename__ = "departments"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String, unique=True, nullable=False)
 
     # 타임스탬프
@@ -38,14 +38,14 @@ class DepartmentDisease(Base):
 
     __tablename__ = "department_diseases"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(Integer, primary_key=True, autoincrement=True)
     department_id = Column(
-        UUID(as_uuid=True),
+        Integer,
         ForeignKey("departments.id", ondelete="CASCADE"),
         nullable=False,
     )
     disease_id = Column(
-        UUID(as_uuid=True),
+        Integer,
         ForeignKey("diseases.id", ondelete="CASCADE"),
         nullable=False,
     )
@@ -67,14 +67,14 @@ class HospitalDepartment(Base):
 
     __tablename__ = "hospital_departments"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(Integer, primary_key=True, autoincrement=True)
     hospital_id = Column(
-        UUID(as_uuid=True),
+        Integer,
         ForeignKey("hospitals.id", ondelete="CASCADE"),
         nullable=False,
     )
     department_id = Column(
-        UUID(as_uuid=True),
+        Integer,
         ForeignKey("departments.id", ondelete="CASCADE"),
         nullable=False,
     )

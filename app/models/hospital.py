@@ -27,7 +27,7 @@ class Hospital(Base):
 
     __tablename__ = "hospitals"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String, nullable=False)
     address = Column(Text, nullable=False)
     latitude = Column(Float, nullable=False)
@@ -64,14 +64,14 @@ class HospitalEquipment(Base):
 
     __tablename__ = "hospital_equipment"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(Integer, primary_key=True, autoincrement=True)
     hospital_id = Column(
-        UUID(as_uuid=True),
+        Integer,
         ForeignKey("hospitals.id", ondelete="CASCADE"),
         nullable=False,
     )
     equipment_subcategory_id = Column(
-        UUID(as_uuid=True),
+        Integer,
         ForeignKey("medical_equipment_subcategories.id", ondelete="CASCADE"),
         nullable=False,
     )
@@ -101,19 +101,19 @@ class HospitalRecommendation(Base):
 
     __tablename__ = "hospital_recommendations"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(Integer, primary_key=True)  # 정수형 ID로 변경
     inference_result_id = Column(
-        UUID(as_uuid=True),
+        Integer,  # ModelInferenceResult의 id가 정수형으로 변경됨
         ForeignKey("model_inference_results.id", ondelete="CASCADE"),
         nullable=False,
     )
     hospital_id = Column(
-        UUID(as_uuid=True),
+        Integer,  # Hospital의 id가 정수형으로 변경됨
         ForeignKey("hospitals.id", ondelete="CASCADE"),
         nullable=False,
     )
     user_id = Column(
-        UUID(as_uuid=True),
+        UUID(as_uuid=True),  # user 관련은 UUID 유지
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
     )

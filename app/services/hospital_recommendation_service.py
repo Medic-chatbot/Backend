@@ -5,7 +5,6 @@
 import logging
 import math
 from typing import List, Optional, Tuple
-from uuid import UUID
 
 from app.models.department import Department, DepartmentDisease, HospitalDepartment
 from app.models.equipment import EquipmentDisease, MedicalEquipmentSubcategory
@@ -98,7 +97,7 @@ class HospitalRecommendationService:
         return final_score, full_reason
 
     @staticmethod
-    def get_required_equipment_for_disease(db: Session, disease_id: UUID) -> List[str]:
+    def get_required_equipment_for_disease(db: Session, disease_id: int) -> List[str]:
         """
         질환에 필요한 필수장비 목록 조회
 
@@ -119,7 +118,7 @@ class HospitalRecommendationService:
         return [equipment[0] for equipment in equipment_list]
 
     @staticmethod
-    def get_hospital_equipment(db: Session, hospital_id: UUID) -> List[str]:
+    def get_hospital_equipment(db: Session, hospital_id: int) -> List[str]:
         """
         병원 보유 장비 목록 조회
 
@@ -147,7 +146,7 @@ class HospitalRecommendationService:
     @staticmethod
     def get_hospitals_by_disease_and_location(
         db: Session,
-        disease_id: UUID,
+        disease_id: int,
         user_latitude: float,
         user_longitude: float,
         max_distance_km: float = 20.0,
@@ -204,8 +203,8 @@ class HospitalRecommendationService:
     @staticmethod
     def recommend_hospitals(
         db: Session,
-        inference_result_id: UUID,
-        user_id: UUID,
+        inference_result_id: int,
+        user_id: str,  # UUID string으로 유지
         max_distance_km: float = 20.0,
         limit: int = 3,
     ) -> List[HospitalRecommendation]:

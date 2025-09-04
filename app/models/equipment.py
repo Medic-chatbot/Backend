@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 
 from app.db.base import Base
-from sqlalchemy import Column, DateTime, ForeignKey, String, Text
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -16,7 +16,7 @@ class MedicalEquipmentCategory(Base):
 
     __tablename__ = "medical_equipment_categories"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(
         String, unique=True, nullable=False
     )  # 장비대분류명 (예: 제세동기, 일반엑스선촬영장치)
@@ -42,9 +42,9 @@ class MedicalEquipmentSubcategory(Base):
 
     __tablename__ = "medical_equipment_subcategories"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(Integer, primary_key=True, autoincrement=True)
     category_id = Column(
-        UUID(as_uuid=True),
+        Integer,
         ForeignKey("medical_equipment_categories.id", ondelete="CASCADE"),
         nullable=False,
     )
@@ -75,14 +75,14 @@ class EquipmentDisease(Base):
 
     __tablename__ = "equipment_diseases"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(Integer, primary_key=True, autoincrement=True)
     equipment_subcategory_id = Column(
-        UUID(as_uuid=True),
+        Integer,
         ForeignKey("medical_equipment_subcategories.id", ondelete="CASCADE"),
         nullable=False,
     )
     disease_id = Column(
-        UUID(as_uuid=True),
+        Integer,
         ForeignKey("diseases.id", ondelete="CASCADE"),
         nullable=False,
     )

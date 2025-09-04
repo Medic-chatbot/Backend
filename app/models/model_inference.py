@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 
 from app.db.base import Base
-from sqlalchemy import Column, DateTime, Float, ForeignKey, String, Text
+from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -16,9 +16,9 @@ class ModelInferenceResult(Base):
 
     __tablename__ = "model_inference_results"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(Integer, primary_key=True)
     chat_message_id = Column(
-        UUID(as_uuid=True),
+        Integer,
         ForeignKey("chat_messages.id", ondelete="CASCADE"),
         nullable=False,
     )
@@ -26,7 +26,7 @@ class ModelInferenceResult(Base):
 
     # 1순위 예측
     first_disease_id = Column(
-        UUID(as_uuid=True),
+        Integer,
         ForeignKey("diseases.id", ondelete="CASCADE"),
         nullable=False,
     )
@@ -34,7 +34,7 @@ class ModelInferenceResult(Base):
 
     # 2순위 예측
     second_disease_id = Column(
-        UUID(as_uuid=True),
+        Integer,
         ForeignKey("diseases.id", ondelete="CASCADE"),
         nullable=True,
     )
@@ -42,7 +42,7 @@ class ModelInferenceResult(Base):
 
     # 3순위 예측
     third_disease_id = Column(
-        UUID(as_uuid=True),
+        Integer,
         ForeignKey("diseases.id", ondelete="CASCADE"),
         nullable=True,
     )

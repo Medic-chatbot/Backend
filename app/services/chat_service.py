@@ -18,7 +18,7 @@ class ChatService:
     """채팅 관련 비즈니스 로직"""
 
     @staticmethod
-    def get_chat_room(db: Session, room_id: UUID) -> Optional[ChatRoom]:
+    def get_chat_room(db: Session, room_id: int) -> Optional[ChatRoom]:
         """채팅방 조회"""
         return (
             db.query(ChatRoom)
@@ -40,7 +40,7 @@ class ChatService:
 
     @staticmethod
     def create_chat_message(
-        db: Session, chat_room_id: UUID, message_type: str, content: str
+        db: Session, chat_room_id: int, message_type: str, content: str
     ) -> ChatMessage:
         """채팅 메시지 생성"""
         message = ChatMessage(
@@ -57,7 +57,7 @@ class ChatService:
 
     @staticmethod
     def update_chat_room_final_disease(
-        db: Session, room_id: UUID, disease_id: UUID
+        db: Session, room_id: int, disease_id: int
     ) -> Optional[ChatRoom]:
         """채팅방의 최종 질환 업데이트"""
         chat_room = ChatService.get_chat_room(db, room_id)
@@ -72,7 +72,7 @@ class ChatService:
 
     @staticmethod
     def get_chat_room_with_final_diagnosis(
-        db: Session, room_id: UUID
+        db: Session, room_id: int
     ) -> Optional[Tuple[ChatRoom, Optional[Disease], Optional[List]]]:
         """채팅방과 최종 진단 정보 조회"""
         chat_room = ChatService.get_chat_room(db, room_id)
@@ -107,7 +107,7 @@ class ChatService:
 
     @staticmethod
     def get_chat_messages(
-        db: Session, room_id: UUID, limit: int = 50
+        db: Session, room_id: int, limit: int = 50
     ) -> List[ChatMessage]:
         """채팅방의 메시지 목록 조회"""
         return (
@@ -119,7 +119,7 @@ class ChatService:
         )
 
     @staticmethod
-    def deactivate_chat_room(db: Session, room_id: UUID) -> bool:
+    def deactivate_chat_room(db: Session, room_id: int) -> bool:
         """채팅방 비활성화"""
         chat_room = ChatService.get_chat_room(db, room_id)
         if not chat_room:

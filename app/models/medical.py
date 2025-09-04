@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 
 from app.db.base import Base
-from sqlalchemy import Column, DateTime, String, Text
+from sqlalchemy import Column, DateTime, Integer, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -16,7 +16,7 @@ class Disease(Base):
 
     __tablename__ = "diseases"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(Integer, primary_key=True)
     name = Column(String, unique=True, nullable=False)
     description = Column(Text, nullable=True)
 

@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 
 from app.db.base import Base
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, String, Text
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -16,7 +16,7 @@ class ChatRoom(Base):
 
     __tablename__ = "chat_rooms"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(Integer, primary_key=True)  # 정수형 ID로 변경
     user_id = Column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="CASCADE"),
@@ -27,7 +27,7 @@ class ChatRoom(Base):
 
     # 최종 진단 정보 (채팅에서 마지막으로 진단된 질환)
     final_disease_id = Column(
-        UUID(as_uuid=True),
+        Integer,  # medical 관련은 정수형으로 변경
         ForeignKey("diseases.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
@@ -51,9 +51,9 @@ class ChatMessage(Base):
 
     __tablename__ = "chat_messages"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(Integer, primary_key=True)  # 정수형 ID로 변경
     chat_room_id = Column(
-        UUID(as_uuid=True),
+        Integer,  # ChatRoom의 id가 Integer로 변경됨
         ForeignKey("chat_rooms.id", ondelete="CASCADE"),
         nullable=False,
     )
