@@ -1,0 +1,58 @@
+services:
+  nginx:
+    build:
+      context: .
+      dockerfile: nginx.Dockerfile
+    ports:
+      - "80:80"
+    environment:
+      - API_SERVICE_HOST=api
+      - ML_SERVICE_HOST=ml-service
+    depends_on:
+      - api
+      - ml-service
+    networks:
+      - medic-network
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - ML_SERVICE_URL=http://ml-service:8001
+    volumes:
+      # Alembic migration 파일 자동 동기화
+      - ./alembic/versions:/app/alembic/versions
+    depends_on:
+      - ml-service
+    networks:
+      - medic-network
+
+  ml-service:
+    build:
+      context: .
+      dockerfile: ml-service/Dockerfile
+    ports:
+      - "8001:8001"
+    environment:
+      - MODEL_NAME=unu-dev/krbert_ms2d_v1
+      - DEVICE=cpu  # 로컬 테스트용 (GPU 없는 환경)
+      - API_SERVICE_URL=http://api:8000
+    volumes:
+      # 모델 캐시 공유
+      - ml-model-cache:/app/model_cache
+      - konlpy-data:/app/konlpy_data
+    networks:
+      - medic-network
+
+networks:
+  medic-network:
+    driver: bridge
+
+volumes:
+  ml-model-cache:
+  konlpy-data:

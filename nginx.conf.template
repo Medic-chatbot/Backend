@@ -1,0 +1,87 @@
+upstream fastapi_backend {
+    server ${ALB_HOST};
+}
+
+upstream ml_backend {
+    server ${ALB_HOST};
+}
+
+server {
+    listen 80;
+    server_name _;
+
+    # 최대 요청 크기 설정
+    client_max_body_size 10M;
+
+    # 기본 위치 (API 서비스로)
+    location / {
+        proxy_pass http://fastapi_backend;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # 타임아웃 설정
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+
+    # 헬스체크 경로 (ALB용)
+    location /health {
+        proxy_pass http://fastapi_backend/health;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # 헬스체크는 빠른 응답 필요
+        proxy_connect_timeout 5s;
+        proxy_send_timeout 5s;
+        proxy_read_timeout 5s;
+    }
+
+    # API 경로 (ALB 경유)
+    location /api/ {
+        proxy_pass http://fastapi_backend/api/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # WebSocket 지원 (ALB 경유)
+    location /api/chat/ws/ {
+        proxy_pass http://fastapi_backend/api/chat/ws/;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # WebSocket 타임아웃 설정
+        proxy_read_timeout 86400;
+    }
+
+    # ML 서비스 (ALB 경유)
+    location /ml/ {
+        proxy_pass http://ml_backend/ml/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # 정적 파일 (필요시)
+    location /static/ {
+        alias /app/static/;
+        expires 1d;
+        add_header Cache-Control "public, immutable";
+    }
+
+    # 로그 설정
+    access_log /var/log/nginx/access.log;
+    error_log /var/log/nginx/error.log;
+}

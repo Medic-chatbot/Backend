@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket Chat Test</title>
+    <style>
+        #messages {
+            height: 300px;
+            overflow-y: scroll;
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+        .message {
+            margin: 5px 0;
+            padding: 5px;
+            border-radius: 3px;
+        }
+        .user { background: #e3f2fd; }
+        .bot { background: #f3e5f5; }
+        .system { background: #fff3e0; font-style: italic; }
+        .error { background: #ffebee; color: #c62828; }
+    </style>
+</head>
+<body>
+    <h1>WebSocket Chat Test</h1>
+
+    <div>
+        <label>Room ID:</label>
+        <input type="number" id="roomId" value="1">
+        <label>JWT Token:</label>
+        <input type="text" id="token" placeholder="your-jwt-token-here">
+        <button onclick="connect()">Connect</button>
+        <button onclick="disconnect()">Disconnect</button>
+    </div>
+
+    <div id="messages"></div>
+
+    <div>
+        <input type="text" id="messageInput" placeholder="메시지를 입력하세요..." onkeypress="handleKeyPress(event)">
+        <button onclick="sendMessage()">Send</button>
+    </div>
+
+    <div>
+        <button onclick="testBotResponse()">Test Bot Response</button>
+        <button onclick="clearMessages()">Clear Messages</button>
+    </div>
+
+    <script>
+        let ws = null;
+
+        function addMessage(type, content, timestamp = null) {
+            const messages = document.getElementById('messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}`;
+
+            const time = timestamp ? new Date(timestamp).toLocaleTimeString() : new Date().toLocaleTimeString();
+            messageDiv.innerHTML = `[${time}] ${content}`;
+            messages.appendChild(messageDiv);
+            messages.scrollTop = messages.scrollHeight;
+        }
+
+        function connect() {
+            const roomId = document.getElementById('roomId').value;
+            const token = document.getElementById('token').value;
+
+            if (!token) {
+                alert('JWT 토큰을 입력해주세요!');
+                return;
+            }
+
+            // 기존 연결이 있으면 닫기
+            if (ws) {
+                ws.close();
+            }
+
+            // WebSocket 연결
+            ws = new WebSocket(`ws://localhost:8000/api/chat/ws/${roomId}?token=${token}`);
+
+            ws.onopen = function(event) {
+                addMessage('system', 'WebSocket 연결 성공!');
+            };
+
+            ws.onmessage = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    addMessage(data.type, data.content, data.timestamp);
+                } catch (e) {
+                    addMessage('error', '메시지 파싱 오류: ' + event.data);
+                }
+            };
+
+            ws.onclose = function(event) {
+                addMessage('system', `WebSocket 연결 종료 (코드: ${event.code})`);
+            };
+
+            ws.onerror = function(error) {
+                addMessage('error', 'WebSocket 오류 발생');
+            };
+        }
+
+        function disconnect() {
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+        }
+
+        function sendMessage() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                alert('WebSocket이 연결되지 않았습니다!');
+                return;
+            }
+
+            const messageInput = document.getElementById('messageInput');
+            const content = messageInput.value.trim();
+
+            if (!content) {
+                alert('메시지를 입력해주세요!');
+                return;
+            }
+
+            // 사용자 메시지를 즉시 채팅창에 표시 (프론트엔드처럼)
+            addMessage('user', content);
+
+            // 사용자 메시지 전송
+            ws.send(JSON.stringify({
+                type: 'user_message',
+                content: content
+            }));
+
+            messageInput.value = '';
+        }
+
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+
+        function testBotResponse() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                alert('WebSocket이 연결되지 않았습니다!');
+                return;
+            }
+
+            // 봇 응답 테스트용 메시지들
+            const testMessages = [
+                '두통이 있어요',
+                '복통이 심해요',
+                '열이 나요',
+                '일반적인 질문입니다'
+            ];
+
+            const randomMessage = testMessages[Math.floor(Math.random() * testMessages.length)];
+
+            ws.send(JSON.stringify({
+                type: 'user_message',
+                content: randomMessage
+            }));
+        }
+
+        function clearMessages() {
+            document.getElementById('messages').innerHTML = '';
+        }
+
+        // 페이지 로드 시 안내 메시지
+        window.onload = function() {
+            addMessage('system', 'WebSocket 테스트 페이지가 로드되었습니다.');
+            addMessage('system', '1. Room ID를 설정하세요 (예: 1)');
+            addMessage('system', '2. JWT 토큰을 입력하세요');
+            addMessage('system', '3. Connect 버튼을 클릭하세요');
+            addMessage('system', '4. 메시지를 입력하고 Send를 클릭하세요');
+        };
+    </script>
+</body>
+</html>

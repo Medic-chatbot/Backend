@@ -1,0 +1,144 @@
+name: ECS Multi-Service CI/CD
+
+on:
+  push:
+    branches: [ main ]  # 프로덕션 배포만
+  pull_request:
+    branches: [ main ]
+
+env:
+  AWS_REGION: ap-northeast-2
+  ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.ap-northeast-2.amazonaws.com
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.9]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pytest pytest-cov flake8
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+    
+    - name: Lint with flake8
+      run: |
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+    
+    - name: Run tests with pytest
+      run: |
+        pytest --cov=./ --cov-report=xml
+      continue-on-error: true
+
+  build-and-deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Determine environment
+      id: env
+      run: |
+        if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+          echo "environment=prod" >> $GITHUB_OUTPUT
+          echo "image_tag=latest" >> $GITHUB_OUTPUT
+        else
+          echo "environment=dev" >> $GITHUB_OUTPUT
+          echo "image_tag=dev" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+
+    # API Service 빌드 & 푸시
+    - name: Build and push API Service
+      run: |
+        docker build -f Dockerfile -t $ECR_REGISTRY/medic-api-service:${{ steps.env.outputs.image_tag }} .
+        docker push $ECR_REGISTRY/medic-api-service:${{ steps.env.outputs.image_tag }}
+
+    # ML Service 빌드 & 푸시
+    - name: Build and push ML Service
+      run: |
+        docker build -f ml-service/Dockerfile -t $ECR_REGISTRY/medic-ml-service:${{ steps.env.outputs.image_tag }} .
+        docker push $ECR_REGISTRY/medic-ml-service:${{ steps.env.outputs.image_tag }}
+
+    # Nginx 빌드 & 푸시
+    - name: Build and push Nginx
+      run: |
+        docker build -f nginx.Dockerfile -t $ECR_REGISTRY/medic-nginx:${{ steps.env.outputs.image_tag }} .
+        docker push $ECR_REGISTRY/medic-nginx:${{ steps.env.outputs.image_tag }}
+
+    # 태스크 정의 업데이트 및 등록
+    - name: Deploy ECS Task Definitions
+      env:
+        AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+        ECR_API_SERVICE: ${{ env.ECR_REGISTRY }}/medic-api-service
+        ECR_ML_SERVICE: ${{ env.ECR_REGISTRY }}/medic-ml-service
+        ECR_NGINX: ${{ env.ECR_REGISTRY }}/medic-nginx
+        DB_HOST: ${{ secrets.DB_HOST }}
+        DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+        SECRET_KEY: ${{ secrets.SECRET_KEY }}
+        ACCESS_TOKEN_EXPIRE_MINUTES: ${{ secrets.ACCESS_TOKEN_EXPIRE_MINUTES }}
+        ALB_HOST: ${{ secrets.ALB_HOST }}
+        ALLOWED_HOSTS_STRING: ${{ secrets.ALLOWED_HOSTS_STRING }}
+        KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
+        DEBUG: ${{ secrets.DEBUG }}
+      run: |
+        chmod +x scripts/deploy-ecs-tasks.sh
+        ./scripts/deploy-ecs-tasks.sh
+
+    # ECS 서비스 업데이트 (프로덕션만)
+    - name: Update ECS Services
+      if: steps.env.outputs.environment == 'prod'
+      run: |
+        # API 서비스 업데이트
+        aws ecs update-service --cluster medic-cluster \
+                              --service medic-api-service \
+                              --task-definition medic-api-service:latest \
+                              --force-new-deployment \
+                              --region ${{ env.AWS_REGION }}
+        
+        # ML 서비스 업데이트
+        aws ecs update-service --cluster medic-cluster \
+                              --service medic-ml-service \
+                              --task-definition medic-ml-service:latest \
+                              --force-new-deployment \
+                              --region ${{ env.AWS_REGION }}
+        
+        # Nginx 서비스 업데이트
+        aws ecs update-service --cluster medic-cluster \
+                              --service medic-nginx-service \
+                              --task-definition medic-nginx-service:latest \
+                              --force-new-deployment \
+                              --region ${{ env.AWS_REGION }}
+
+    # 배포 알림
+    - name: Deployment notification
+      run: |
+        echo "🚀 배포 완료!"
+        echo "환경: ${{ steps.env.outputs.environment }}"
+        echo "이미지 태그: ${{ steps.env.outputs.image_tag }}"
+        echo "커밋: ${{ github.sha }}"

@@ -1,0 +1,82 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.env
+.venv
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Tests
+tests/
+.coverage
+htmlcov/
+.tox/
+.nox/
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# Logs
+logs/
+*.log
+
+# Local development
+docker-compose.override.yml
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Documentation
+docs/
+*.md
+
+# Docker
+.docker/
+Dockerfile*
+docker-compose*
+
+# ML Models (큰 파일들은 별도 관리)
+*.pt
+*.pth
+*.onnx
+models/
+ecs-task-definitions/
+docs/
+
