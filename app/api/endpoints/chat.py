@@ -497,8 +497,8 @@ async def websocket_endpoint(
                             bot_content = "죄송합니다. 증상 분석 중 오류가 발생했습니다. 다시 시도해주세요."
 
                     except Exception as e:
-            logger.error(f"[WebSocket] ML 분석 중 오류: {str(e)}")
-            bot_content = "증상에 대해 더 자세히 알려주시면 보다 정확한 정보를 제공해드릴 수 있습니다."
+                        logger.error(f"[WebSocket] ML 분석 중 오류: {str(e)}")
+                        bot_content = "증상에 대해 더 자세히 알려주시면 보다 정확한 정보를 제공해드릴 수 있습니다."
 
                     # 봇 메시지 저장
                     bot_message = ChatService.create_chat_message(
