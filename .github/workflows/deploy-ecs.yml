@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [3.12]
+        python-version: [3.9]
 
     steps:
     - name: Checkout code
@@ -102,12 +102,10 @@ jobs:
         DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
         SECRET_KEY: ${{ secrets.SECRET_KEY }}
         ACCESS_TOKEN_EXPIRE_MINUTES: ${{ secrets.ACCESS_TOKEN_EXPIRE_MINUTES }}
-        ML_SERVICE_URL: ${{ secrets.ML_SERVICE_URL }}
-        API_SERVICE_URL: ${{ secrets.API_SERVICE_URL }}
+        ALB_HOST: ${{ secrets.ALB_HOST }}
         ALLOWED_HOSTS_STRING: ${{ secrets.ALLOWED_HOSTS_STRING }}
         KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
         DEBUG: ${{ secrets.DEBUG }}
-        ALB_HOST: ${{ secrets.ALB_HOST }}
       run: |
         chmod +x scripts/deploy-ecs-tasks.sh
         ./scripts/deploy-ecs-tasks.sh
@@ -119,17 +117,23 @@ jobs:
         # API 서비스 업데이트
         aws ecs update-service --cluster medic-cluster \
                               --service medic-api-service \
-                              --force-new-deployment
+                              --task-definition medic-api-service:latest \
+                              --force-new-deployment \
+                              --region ${{ env.AWS_REGION }}
         
         # ML 서비스 업데이트
         aws ecs update-service --cluster medic-cluster \
                               --service medic-ml-service \
-                              --force-new-deployment
+                              --task-definition medic-ml-service:latest \
+                              --force-new-deployment \
+                              --region ${{ env.AWS_REGION }}
         
         # Nginx 서비스 업데이트
         aws ecs update-service --cluster medic-cluster \
                               --service medic-nginx-service \
-                              --force-new-deployment
+                              --task-definition medic-nginx-service:latest \
+                              --force-new-deployment \
+                              --region ${{ env.AWS_REGION }}
 
     # 배포 알림
     - name: Deployment notification
