@@ -117,21 +117,18 @@ jobs:
         # API 서비스 업데이트
         aws ecs update-service --cluster medic-cluster \
                               --service medic-api-service \
-                              --task-definition medic-api-service:latest \
                               --force-new-deployment \
                               --region ${{ env.AWS_REGION }}
-        
+
         # ML 서비스 업데이트
         aws ecs update-service --cluster medic-cluster \
                               --service medic-ml-service \
-                              --task-definition medic-ml-service:latest \
                               --force-new-deployment \
                               --region ${{ env.AWS_REGION }}
-        
+
         # Nginx 서비스 업데이트
         aws ecs update-service --cluster medic-cluster \
                               --service medic-nginx-service \
-                              --task-definition medic-nginx-service:latest \
                               --force-new-deployment \
                               --region ${{ env.AWS_REGION }}
 
