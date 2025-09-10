@@ -167,7 +167,7 @@ jobs:
                                 --desired-count 1 \
                                 --launch-type FARGATE \
                                 --network-configuration "awsvpcConfiguration={subnets=[subnet-0af516b746f51bf50],securityGroups=[sg-02d21d7d277ed217d]}" \
-                                --load-balancers targetGroupArn=arn:aws:elasticloadbalancing:ap-northeast-2:832362089079:targetgroup/medic-gpu-cluster-nginx-tg-ip/b5ccaec60983cc0c,containerName=medic-nginx-container,containerPort=80 \
+                                --load-balancers targetGroupArn=arn:aws:elasticloadbalancing:ap-northeast-2:832362089079:targetgroup/medic-gpu-cluster-nginx-tg/fd2626616e28a85c,containerName=medic-nginx-container,containerPort=80 \
                                 --region ${{ env.AWS_REGION }}
         fi
 
