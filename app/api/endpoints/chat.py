@@ -2,9 +2,13 @@
 채팅 관련 엔드포인트
 """
 
+import logging
 from datetime import datetime
 from typing import List, Optional
 from uuid import UUID
+
+# 로거 설정
+logger = logging.getLogger(__name__)
 
 from app.api.deps import get_current_user, get_db
 from app.core.config import settings
@@ -175,6 +179,7 @@ async def get_chat_messages(
         # 채팅방 존재 및 권한 확인
         chat_room = ChatService.get_chat_room(db, room_id)
         if not chat_room:
+            logger.warning(f"Chat room not found: {room_id}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="채팅방을 찾을 수 없습니다.",
@@ -182,6 +187,7 @@ async def get_chat_messages(
 
         # 채팅방이 현재 사용자의 것인지 확인
         if str(chat_room.user_id) != str(current_user.id):
+            logger.warning(f"Unauthorized access to chat room {room_id} by user {current_user.id}")
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="이 채팅방에 접근할 권한이 없습니다.",
@@ -192,6 +198,7 @@ async def get_chat_messages(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error fetching chat messages: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"메시지 목록 조회 중 오류가 발생했습니다: {str(e)}",
@@ -490,8 +497,8 @@ async def websocket_endpoint(
                             bot_content = "죄송합니다. 증상 분석 중 오류가 발생했습니다. 다시 시도해주세요."
 
                     except Exception as e:
-                        print(f"[WebSocket] ML 분석 중 오류: {str(e)}")
-                        bot_content = "증상에 대해 더 자세히 알려주시면 보다 정확한 정보를 제공해드릴 수 있습니다."
+            logger.error(f"[WebSocket] ML 분석 중 오류: {str(e)}")
+            bot_content = "증상에 대해 더 자세히 알려주시면 보다 정확한 정보를 제공해드릴 수 있습니다."
 
                     # 봇 메시지 저장
                     bot_message = ChatService.create_chat_message(
