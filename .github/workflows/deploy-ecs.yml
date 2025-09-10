@@ -115,59 +115,59 @@ jobs:
       if: steps.env.outputs.environment == 'prod'
       run: |
         # API 서비스 생성 또는 업데이트
-        if aws ecs describe-services --cluster medic-cluster --services medic-api-service --region ${{ env.AWS_REGION }} --query 'services[0].status' --output text 2>/dev/null | grep -q ACTIVE; then
+        if aws ecs describe-services --cluster medic-gpu-cluster --services medic-api-service --region ${{ env.AWS_REGION }} --query 'services[0].status' --output text 2>/dev/null | grep -q ACTIVE; then
           echo "API 서비스 업데이트 중..."
-          aws ecs update-service --cluster medic-cluster \
+          aws ecs update-service --cluster medic-gpu-cluster \
                                 --service medic-api-service \
                                 --force-new-deployment \
                                 --region ${{ env.AWS_REGION }}
         else
           echo "API 서비스 생성 중..."
-          aws ecs create-service --cluster medic-cluster \
+          aws ecs create-service --cluster medic-gpu-cluster \
                                 --service-name medic-api-service \
                                 --task-definition medic-api-service \
                                 --desired-count 1 \
                                 --launch-type FARGATE \
-                                --network-configuration "awsvpcConfiguration={subnets=[subnet-0af84af5fd5b68fdc,subnet-0edf54fa39b4ae48f],securityGroups=[sg-0f833af6658fba085]}" \
-                                --load-balancers targetGroupArn=arn:aws:elasticloadbalancing:ap-northeast-2:832362089079:targetgroup/medic-api-tg/f0dc065560ce37ad,containerName=medic-api-container,containerPort=8000 \
+                                --network-configuration "awsvpcConfiguration={subnets=[subnet-0af516b746f51bf50],securityGroups=[sg-02d21d7d277ed217d]}" \
+                                --load-balancers targetGroupArn=arn:aws:elasticloadbalancing:ap-northeast-2:832362089079:targetgroup/medic-gpu-cluster-api-tg/d645caed9278af9e,containerName=medic-api-container,containerPort=8000 \
                                 --region ${{ env.AWS_REGION }}
         fi
 
         # ML 서비스 생성 또는 업데이트
-        if aws ecs describe-services --cluster medic-cluster --services medic-ml-service --region ${{ env.AWS_REGION }} --query 'services[0].status' --output text 2>/dev/null | grep -q ACTIVE; then
+        if aws ecs describe-services --cluster medic-gpu-cluster --services medic-ml-service --region ${{ env.AWS_REGION }} --query 'services[0].status' --output text 2>/dev/null | grep -q ACTIVE; then
           echo "ML 서비스 업데이트 중..."
-          aws ecs update-service --cluster medic-cluster \
+          aws ecs update-service --cluster medic-gpu-cluster \
                                 --service medic-ml-service \
                                 --force-new-deployment \
                                 --region ${{ env.AWS_REGION }}
         else
           echo "ML 서비스 생성 중..."
-          aws ecs create-service --cluster medic-cluster \
+          aws ecs create-service --cluster medic-gpu-cluster \
                                 --service-name medic-ml-service \
                                 --task-definition medic-ml-service \
                                 --desired-count 1 \
                                 --launch-type EC2 \
-                                --load-balancers targetGroupArn=arn:aws:elasticloadbalancing:ap-northeast-2:832362089079:targetgroup/medic-ml-tg-instance/0fe9715b7a756844,containerName=medic-ml-container,containerPort=8001 \
+                                --load-balancers targetGroupArn=arn:aws:elasticloadbalancing:ap-northeast-2:832362089079:targetgroup/medic-gpu-cluster-ml-tg/3c61d34b09a1419a,containerName=medic-ml-container,containerPort=8001 \
                                 --placement-strategy type=spread,field=instanceId \
                                 --region ${{ env.AWS_REGION }}
         fi
 
         # Nginx 서비스 생성 또는 업데이트
-        if aws ecs describe-services --cluster medic-cluster --services medic-nginx-service --region ${{ env.AWS_REGION }} --query 'services[0].status' --output text 2>/dev/null | grep -q ACTIVE; then
+        if aws ecs describe-services --cluster medic-gpu-cluster --services medic-nginx-service --region ${{ env.AWS_REGION }} --query 'services[0].status' --output text 2>/dev/null | grep -q ACTIVE; then
           echo "Nginx 서비스 업데이트 중..."
-          aws ecs update-service --cluster medic-cluster \
+          aws ecs update-service --cluster medic-gpu-cluster \
                                 --service medic-nginx-service \
                                 --force-new-deployment \
                                 --region ${{ env.AWS_REGION }}
         else
           echo "Nginx 서비스 생성 중..."
-          aws ecs create-service --cluster medic-cluster \
+          aws ecs create-service --cluster medic-gpu-cluster \
                                 --service-name medic-nginx-service \
                                 --task-definition medic-nginx-service \
                                 --desired-count 1 \
                                 --launch-type FARGATE \
-                                --network-configuration "awsvpcConfiguration={subnets=[subnet-0af84af5fd5b68fdc,subnet-0edf54fa39b4ae48f],securityGroups=[sg-0f833af6658fba085]}" \
-                                --load-balancers targetGroupArn=arn:aws:elasticloadbalancing:ap-northeast-2:832362089079:targetgroup/medic-nginx-tg-new/49adf8da4793676e,containerName=medic-nginx-container,containerPort=80 \
+                                --network-configuration "awsvpcConfiguration={subnets=[subnet-0af516b746f51bf50],securityGroups=[sg-02d21d7d277ed217d]}" \
+                                --load-balancers targetGroupArn=arn:aws:elasticloadbalancing:ap-northeast-2:832362089079:targetgroup/medic-gpu-cluster-nginx-tg/fd2626616e28a85c,containerName=medic-nginx-container,containerPort=80 \
                                 --region ${{ env.AWS_REGION }}
         fi
 
