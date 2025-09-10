@@ -1,9 +1,9 @@
 upstream fastapi_backend {
-    server ${ALB_HOST};
+    server localhost:8000;
 }
 
 upstream ml_backend {
-    server ${ALB_HOST};
+    server localhost:8001;
 }
 
 server {
