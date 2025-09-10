@@ -25,6 +25,7 @@ check_env_vars() {
         "DEBUG"
         "ALLOWED_HOSTS_STRING"
         "KAKAO_REST_API_KEY"
+        "ALB_HOST"
     )
     
     for var in "${required_vars[@]}"; do

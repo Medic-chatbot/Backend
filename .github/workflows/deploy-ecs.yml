@@ -104,12 +104,11 @@ jobs:
         ACCESS_TOKEN_EXPIRE_MINUTES: ${{ secrets.ACCESS_TOKEN_EXPIRE_MINUTES }}
         ML_SERVICE_URL: ${{ secrets.ML_SERVICE_URL }}
         API_SERVICE_URL: ${{ secrets.API_SERVICE_URL }}
-        API_SERVICE_HOST: ${{ secrets.API_SERVICE_HOST }}
-        ML_SERVICE_HOST: ${{ secrets.ML_SERVICE_HOST }}
         EC2_PUBLIC_IP: ${{ secrets.EC2_PUBLIC_IP }}
         ALLOWED_HOSTS_STRING: ${{ secrets.ALLOWED_HOSTS_STRING }}
         KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
         DEBUG: ${{ secrets.DEBUG }}
+        ALB_HOST: ${{ secrets.ALB_HOST }}
       run: |
         chmod +x scripts/deploy-ecs-tasks.sh
         ./scripts/deploy-ecs-tasks.sh

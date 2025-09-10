@@ -28,12 +28,8 @@
       },
       "environment": [
         {
-          "name": "API_SERVICE_HOST",
-          "value": "${API_SERVICE_HOST}"
-        },
-        {
-          "name": "ML_SERVICE_HOST", 
-          "value": "${ML_SERVICE_HOST}"
+          "name": "ALB_HOST",
+          "value": "${ALB_HOST}"
         }
       ]
     }
