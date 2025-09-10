@@ -2,6 +2,7 @@
 ML 서비스 관련 엔드포인트
 """
 
+import logging
 from typing import Optional
 
 from app.api.deps import get_current_user, get_db
@@ -10,6 +11,9 @@ from app.services.ml_service import ml_client
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+
+# 로거 설정
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
