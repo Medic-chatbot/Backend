@@ -48,6 +48,7 @@ docker-compose.override.yml
 .aws/
 *.pem
 .elasticbeanstalk/
+ecs-cloudformation-gpu.yaml
 
 # Testing
 .coverage
