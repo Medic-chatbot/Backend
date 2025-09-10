@@ -104,7 +104,6 @@ jobs:
         ACCESS_TOKEN_EXPIRE_MINUTES: ${{ secrets.ACCESS_TOKEN_EXPIRE_MINUTES }}
         ML_SERVICE_URL: ${{ secrets.ML_SERVICE_URL }}
         API_SERVICE_URL: ${{ secrets.API_SERVICE_URL }}
-        EC2_PUBLIC_IP: ${{ secrets.EC2_PUBLIC_IP }}
         ALLOWED_HOSTS_STRING: ${{ secrets.ALLOWED_HOSTS_STRING }}
         KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
         DEBUG: ${{ secrets.DEBUG }}

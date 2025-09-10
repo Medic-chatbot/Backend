@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     VERSION: str = "1.0.0"
     DEBUG: bool = True  # 모든 로그 출력
 
-    EC2_PUBLIC_IP: str = "localhost"  # 환경별 서버 호스트 (로컬 기본값)
+
 
     # 데이터베이스 설정 (환경변수에서 로딩, 기본값은 로컬 개발용)
     DB_HOST: str = "localhost"
