@@ -147,7 +147,7 @@ jobs:
                                 --task-definition medic-ml-service \
                                 --desired-count 1 \
                                 --launch-type EC2 \
-                                --load-balancers targetGroupArn=arn:aws:elasticloadbalancing:ap-northeast-2:832362089079:targetgroup/medic-ml-tg/ff9c557cd2c803a7,containerName=medic-ml-container,containerPort=8001 \
+                                --load-balancers targetGroupArn=arn:aws:elasticloadbalancing:ap-northeast-2:832362089079:targetgroup/medic-ml-tg-instance/0fe9715b7a756844,containerName=medic-ml-container,containerPort=8001 \
                                 --placement-strategy type=spread,field=instanceId \
                                 --region ${{ env.AWS_REGION }}
         fi
