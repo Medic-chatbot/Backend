@@ -63,18 +63,6 @@ class Settings(BaseSettings):
         """ALB 경유 API 서비스 URL (프로덕션용)"""
         return f"http://{self.ALB_HOST}/api"
 
-    ALB_HOST: str = "medic.yoon.today"  # 프로덕션 ALB 주소
-
-    @property
-    def ML_SERVICE_URL_ALB(self) -> str:
-        """ALB 경유 ML 서비스 URL (프로덕션용)"""
-        return f"http://{self.ALB_HOST}/ml"
-
-    @property
-    def API_SERVICE_URL_ALB(self) -> str:
-        """ALB 경유 API 서비스 URL (프로덕션용)"""
-        return f"http://{self.ALB_HOST}/api"
-
     # 카카오 API 설정
     KAKAO_REST_API_KEY: Optional[str] = None
 
