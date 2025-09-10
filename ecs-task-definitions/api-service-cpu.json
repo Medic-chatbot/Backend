@@ -77,11 +77,5 @@
       "volumesFrom": []
     }
   ],
-  "volumes": [],
-  "placementConstraints": [
-    {
-      "type": "memberOf",
-      "expression": "attribute:environment == dev"
-    }
-  ]
+  "volumes": []
 }
