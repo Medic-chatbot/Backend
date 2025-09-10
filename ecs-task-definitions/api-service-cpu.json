@@ -1,0 +1,87 @@
+{
+  "family": "medic-api-service",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "2048",
+  "executionRoleArn": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/ecsTaskRole",
+  "containerDefinitions": [
+    {
+      "name": "medic-api-container",
+      "image": "${ECR_API_SERVICE}:latest",
+      "portMappings": [
+        {
+          "containerPort": 8000,
+          "protocol": "tcp"
+        }
+      ],
+      "essential": true,
+      "memory": 1536,
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/medic-api",
+          "awslogs-create-group": "true",
+          "awslogs-region": "ap-northeast-2",
+          "awslogs-stream-prefix": "ecs"
+        }
+      },
+      "environment": [
+        {
+          "name": "DB_HOST",
+          "value": "${DB_HOST}"
+        },
+        {
+          "name": "DB_PORT",
+          "value": "${DB_PORT}"
+        },
+        {
+          "name": "DB_NAME",
+          "value": "${DB_NAME}"
+        },
+        {
+          "name": "DB_USER",
+          "value": "${DB_USER}"
+        },
+        {
+          "name": "DB_PASSWORD",
+          "value": "${DB_PASSWORD}"
+        },
+        {
+          "name": "ML_SERVICE_URL",
+          "value": "${ML_SERVICE_URL}"
+        },
+        {
+          "name": "SECRET_KEY",
+          "value": "${SECRET_KEY}"
+        },
+        {
+          "name": "ACCESS_TOKEN_EXPIRE_MINUTES",
+          "value": "${ACCESS_TOKEN_EXPIRE_MINUTES}"
+        },
+        {
+          "name": "DEBUG",
+          "value": "${DEBUG}"
+        },
+        {
+          "name": "ALLOWED_HOSTS_STRING",
+          "value": "${ALLOWED_HOSTS_STRING}"
+        },
+        {
+          "name": "KAKAO_REST_API_KEY",
+          "value": "${KAKAO_REST_API_KEY}"
+        }
+      ],
+      "mountPoints": [],
+      "volumesFrom": []
+    }
+  ],
+  "volumes": [],
+  "placementConstraints": [
+    {
+      "type": "memberOf",
+      "expression": "attribute:environment == dev"
+    }
+  ]
+}

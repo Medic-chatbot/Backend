@@ -23,6 +23,7 @@ class ModelInferenceResult(Base):
         nullable=False,
     )
     input_text = Column(Text, nullable=False)
+    processed_text = Column(Text, nullable=True)  # 형태소 분석된 텍스트
 
     # 1순위 예측
     first_disease_id = Column(

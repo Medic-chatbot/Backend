@@ -10,6 +10,7 @@ from app.api.deps import get_current_user, get_db
 from app.core.config import settings
 from app.models.user import User
 from app.services.chat_service import ChatService
+from app.services.ml_service import ml_client
 from fastapi import (
     APIRouter,
     Depends,
@@ -375,19 +376,122 @@ async def websocket_endpoint(
                         exclude_user=str(user_id),
                     )
 
-                    # 봇 응답 생성 (임시)
-                    bot_responses = {
-                        "두통": "두통의 원인은 다양할 수 있습니다. 스트레스, 수면 부족, 탈수 등이 주요 원인입니다.",
-                        "복통": "복통의 위치와 정도에 따라 원인이 다를 수 있습니다.",
-                        "발열": "발열은 감염이나 염증의 신호일 수 있습니다.",
-                    }
+                    # ML 서비스를 통한 증상 분석
+                    bot_content = "분석 중입니다..."
 
-                    bot_content = "증상에 대해 더 자세히 알려주시면 보다 정확한 정보를 제공해드릴 수 있습니다."
+                    # 먼저 "분석 중" 메시지 전송
+                    analyzing_message = ChatService.create_chat_message(
+                        db, room_id, "BOT", bot_content
+                    )
 
-                    for keyword, response in bot_responses.items():
-                        if keyword in content:
-                            bot_content = response
-                            break
+                    await manager.broadcast_json_to_room(
+                        {
+                            "type": "bot_message",
+                            "content": bot_content,
+                            "room_id": room_id,
+                            "message_id": analyzing_message.id,
+                            "timestamp": analyzing_message.created_at.isoformat(),
+                            "status": "analyzing",
+                        },
+                        room_id,
+                    )
+
+                    # ML 서비스 호출
+                    try:
+                        ml_result = await ml_client.get_full_analysis(
+                            text=content, user_id=str(user_id), chat_room_id=room_id
+                        )
+
+                        if ml_result:
+                            # ML 결과 DB 저장
+                            from app.models.medical import Disease
+                            from app.models.model_inference import ModelInferenceResult
+
+                            # 증상 분석 결과 추출
+                            symptom_analysis = ml_result.get("symptom_analysis", {})
+                            disease_classifications = symptom_analysis.get(
+                                "disease_classifications", []
+                            )
+                            processed_text = symptom_analysis.get(
+                                "processed_text", content
+                            )
+
+                            # ModelInferenceResult 저장
+                            if disease_classifications:
+                                # 상위 3개 질병 정보 추출
+                                first_disease = (
+                                    disease_classifications[0]
+                                    if len(disease_classifications) > 0
+                                    else None
+                                )
+                                second_disease = (
+                                    disease_classifications[1]
+                                    if len(disease_classifications) > 1
+                                    else None
+                                )
+                                third_disease = (
+                                    disease_classifications[2]
+                                    if len(disease_classifications) > 2
+                                    else None
+                                )
+
+                                # Disease ID 조회 (label -> id 변환)
+                                first_disease_record = None
+                                if first_disease:
+                                    first_disease_record = (
+                                        db.query(Disease)
+                                        .filter(
+                                            Disease.name.ilike(
+                                                f"%{first_disease['label']}%"
+                                            )
+                                        )
+                                        .first()
+                                    )
+
+                                if first_disease_record:
+                                    inference_result = ModelInferenceResult(
+                                        chat_message_id=user_message.id,
+                                        input_text=content,
+                                        processed_text=processed_text,
+                                        first_disease_id=first_disease_record.id,
+                                        first_disease_score=first_disease["score"],
+                                        second_disease_id=None,  # TODO: 구현 필요
+                                        second_disease_score=(
+                                            second_disease["score"]
+                                            if second_disease
+                                            else None
+                                        ),
+                                        third_disease_id=None,  # TODO: 구현 필요
+                                        third_disease_score=(
+                                            third_disease["score"]
+                                            if third_disease
+                                            else None
+                                        ),
+                                        inference_time=ml_result.get(
+                                            "inference_time", 0
+                                        ),
+                                    )
+                                    db.add(inference_result)
+                                    db.commit()
+                                    db.refresh(inference_result)
+                            # 증상 분석 결과 메시지 생성
+                            symptom_msg = ml_client.format_disease_results(ml_result)
+
+                            # 병원 추천 결과 메시지 추가
+                            hospital_result = ml_result.get("hospital_recommendations")
+                            if hospital_result:
+                                hospital_msg = ml_client.format_hospital_results(
+                                    hospital_result
+                                )
+                                bot_content = symptom_msg + hospital_msg
+                            else:
+                                bot_content = symptom_msg
+                        else:
+                            bot_content = "죄송합니다. 증상 분석 중 오류가 발생했습니다. 다시 시도해주세요."
+
+                    except Exception as e:
+                        print(f"[WebSocket] ML 분석 중 오류: {str(e)}")
+                        bot_content = "증상에 대해 더 자세히 알려주시면 보다 정확한 정보를 제공해드릴 수 있습니다."
 
                     # 봇 메시지 저장
                     bot_message = ChatService.create_chat_message(

@@ -77,3 +77,6 @@ docker-compose*
 *.pth
 *.onnx
 models/
+ecs-task-definitions/
+docs/
+

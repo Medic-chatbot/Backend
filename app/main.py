@@ -27,22 +27,12 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# CORS 설정 (프론트엔드 연결용)
-allowed_origins = [
-    "https://v0-medical-chatbot-ui-xi.vercel.app",
-    "http://localhost:5173",
-    "http://localhost:3000",
-    "http://localhost:3001",
-    "http://127.0.0.1:5173",
-    "http://127.0.0.1:3000",
-    "http://13.125.229.157",
-    "http://13.125.229.157:80",
-    "https://13.125.229.157",
-]
+# CORS 설정 (프론트엔드 연결용) - config.py에서 로딩
+allowed_origins = settings.ALLOWED_HOSTS
 
 # 개발 환경에서는 모든 origin 허용
 if settings.DEBUG:
-    allowed_origins.append("*")
+    allowed_origins = ["*"]
 
 app.add_middleware(
     CORSMiddleware,
@@ -110,10 +100,11 @@ async def internal_error_handler(request, exc):
 
 
 if __name__ == "__main__":
+    # 로컬 개발 전용
     uvicorn.run(
         "app.main:app",
         host="0.0.0.0",
-        port=int(os.getenv("PORT", 8000)),
-        reload=True,
-        log_level="debug",
+        port=8000,
+        reload=settings.DEBUG,
+        log_level="debug",  # 모든 로그 출력
     )

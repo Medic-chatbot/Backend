@@ -1,0 +1,78 @@
+{
+  "family": "medic-ml-service",
+  "networkMode": "bridge",
+  "requiresCompatibilities": ["EC2"],
+  "cpu": "3584",
+  "memory": "12288",
+  "executionRoleArn": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/ecsTaskRole",
+  "containerDefinitions": [
+    {
+      "name": "medic-ml-container",
+      "image": "${ECR_ML_SERVICE}:latest",
+      "portMappings": [
+        {
+          "containerPort": 8001,
+          "hostPort": 0,
+          "protocol": "tcp"
+        }
+      ],
+      "essential": true,
+      "memory": 10240,
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/medic-ml",
+          "awslogs-create-group": "true",
+          "awslogs-region": "ap-northeast-2",
+          "awslogs-stream-prefix": "ecs"
+        }
+      },
+      "environment": [
+        {
+          "name": "MODEL_NAME",
+          "value": "unu-dev/krbert_ms2d_v1"
+        },
+        {
+          "name": "DEVICE",
+          "value": "cuda"
+        },
+        {
+          "name": "API_SERVICE_URL",
+          "value": "${API_SERVICE_URL}"
+        },
+        {
+          "name": "PYTORCH_CUDA_ALLOC_CONF",
+          "value": "max_split_size_mb:512"
+        },
+        {
+          "name": "CUDA_VISIBLE_DEVICES",
+          "value": "0"
+        },
+        {
+          "name": "TRANSFORMERS_CACHE",
+          "value": "/app/model_cache"
+        },
+        {
+          "name": "KONLPY_DATA_PATH",
+          "value": "/app/konlpy_data"
+        }
+      ],
+      "resourceRequirements": [
+        {
+          "type": "GPU",
+          "value": "1"
+        }
+      ],
+      "mountPoints": [],
+      "volumesFrom": []
+    }
+  ],
+  "volumes": [],
+  "placementConstraints": [
+    {
+      "type": "memberOf",
+      "expression": "attribute:environment == dev"
+    }
+  ]
+}

@@ -88,4 +88,15 @@ docs/
 .gitmessage.txt
 .erd.txt
 
+# Development/Mock files
+**/mock_main.py
+**/Dockerfile.mock
+test_websocket.html
+
+# Alembic - __pycache__ 만 제외, 버전은 포함 필요
+alembic/__pycache__/
+
+# 배포 스크립트는 포함하되 실행 결과 제외
+scripts/logs/
+scripts/tmp/
 
