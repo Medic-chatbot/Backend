@@ -129,7 +129,7 @@ jobs:
                                 --desired-count 1 \
                                 --launch-type FARGATE \
                                 --network-configuration "awsvpcConfiguration={subnets=[subnet-0af84af5fd5b68fdc,subnet-0edf54fa39b4ae48f],securityGroups=[sg-0f833af6658fba085]}" \
-                                --load-balancers targetGroupArn=arn:aws:elasticloadbalancing:ap-northeast-2:832362089079:targetgroup/medic-api-tg/de2a594e5e7cbc9e,containerName=medic-api-container,containerPort=8000 \
+                                --load-balancers targetGroupArn=arn:aws:elasticloadbalancing:ap-northeast-2:832362089079:targetgroup/medic-api-tg/f0dc065560ce37ad,containerName=medic-api-container,containerPort=8000 \
                                 --region ${{ env.AWS_REGION }}
         fi
 
@@ -147,7 +147,7 @@ jobs:
                                 --task-definition medic-ml-service \
                                 --desired-count 1 \
                                 --launch-type EC2 \
-                                --load-balancers targetGroupArn=arn:aws:elasticloadbalancing:ap-northeast-2:832362089079:targetgroup/medic-ml-tg/b6fe042b27d12fa7,containerName=medic-ml-container,containerPort=8001 \
+                                --load-balancers targetGroupArn=arn:aws:elasticloadbalancing:ap-northeast-2:832362089079:targetgroup/medic-ml-tg/ff9c557cd2c803a7,containerName=medic-ml-container,containerPort=8001 \
                                 --placement-strategy type=spread,field=instanceId \
                                 --region ${{ env.AWS_REGION }}
         fi
@@ -167,7 +167,7 @@ jobs:
                                 --desired-count 1 \
                                 --launch-type FARGATE \
                                 --network-configuration "awsvpcConfiguration={subnets=[subnet-0af84af5fd5b68fdc,subnet-0edf54fa39b4ae48f],securityGroups=[sg-0f833af6658fba085]}" \
-                                --load-balancers targetGroupArn=arn:aws:elasticloadbalancing:ap-northeast-2:832362089079:targetgroup/medic-nginx-tg/dc5bf8121cf14eb1,containerName=medic-nginx-container,containerPort=80 \
+                                --load-balancers targetGroupArn=arn:aws:elasticloadbalancing:ap-northeast-2:832362089079:targetgroup/medic-nginx-tg-new/49adf8da4793676e,containerName=medic-nginx-container,containerPort=80 \
                                 --region ${{ env.AWS_REGION }}
         fi
 
