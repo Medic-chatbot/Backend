@@ -18,6 +18,8 @@ from app.schemas.medical import (
     HospitalDetailResponse,
     HospitalRecommendationRequest,
     HospitalRecommendationResponse,
+    HospitalRecommendationByDiseaseRequest,
+    HospitalRecommendationByDiseaseResponse,
     HospitalResponse,
     MedicalEquipmentCategoryResponse,
     MedicalEquipmentSubcategoryResponse,
@@ -381,6 +383,129 @@ def recommend_hospitals(
 
 
 # ===== 장비 관련 API 엔드포인트 =====
+
+
+@router.post("/recommend-by-disease", response_model=HospitalRecommendationByDiseaseResponse)
+def recommend_by_disease(
+    *,
+    db: Session = Depends(get_db),
+    request_data: HospitalRecommendationByDiseaseRequest,
+) -> Any:
+    """
+    질환명 + 사용자 위치 기반의 라이트 병원 추천
+
+    - inference_result_id 없이도 추천 가능하도록 설계
+    - 병원 추천 결과는 DB에 저장하지 않고 계산 결과만 응답
+    """
+    try:
+        # 사용자 조회 및 위치 확인
+        from uuid import UUID
+        user_uuid = UUID(request_data.user_id)
+        from app.models.user import User
+
+        user = db.query(User).filter(User.id == user_uuid).first()
+        if not user or user.latitude is None or user.longitude is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="사용자 위치 정보가 없습니다.",
+            )
+
+        # 질환명 → 질환 레코드 조회
+        from app.models.medical import Disease
+
+        disease = (
+            db.query(Disease)
+            .filter(Disease.name.ilike(f"%{request_data.disease_name}%"))
+            .first()
+        )
+        if not disease:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="해당 질환을 찾을 수 없습니다.",
+            )
+
+        # 후보 병원 조회(진료과/거리 기준)
+        candidates = HospitalRecommendationService.get_hospitals_by_disease_and_location(
+            db,
+            int(disease.id),
+            float(user.latitude),
+            float(user.longitude),
+            float(request_data.max_distance or 20.0),
+        )
+
+        # 필수 장비/병원 보유 장비 기반 점수 계산
+        required_equipment = HospitalRecommendationService.get_required_equipment_for_disease(
+            db, int(disease.id)
+        )
+
+        scored = []
+        for h in candidates:
+            he = HospitalRecommendationService.get_hospital_equipment(db, h.id)
+            score, reason = HospitalRecommendationService.calculate_recommendation_score(
+                getattr(h, "_calculated_distance", 0.0), required_equipment, he
+            )
+            scored.append(
+                {
+                    "hospital": h,
+                    "score": score,
+                    "reason": reason,
+                    "distance": getattr(h, "_calculated_distance", 0.0),
+                    "department_match": True,
+                    "equipment_match": (
+                        len(set(required_equipment) & set(he)) > 0 if required_equipment else True
+                    ),
+                }
+            )
+
+        scored.sort(key=lambda x: x["score"], reverse=True)
+        top = scored[: int(request_data.limit or 3)]
+
+        recommendations = []
+        for rank, item in enumerate(top, 1):
+            h = item["hospital"]
+            recommendations.append(
+                {
+                    "id": h.id,
+                    "name": h.name,
+                    "address": h.address,
+                    "hospital_type_name": h.hospital_type_name,
+                    "phone": h.phone,
+                    "distance": item["distance"],
+                    "rank": rank,
+                    "recommendation_score": item["score"],
+                    "department_match": item["department_match"],
+                    "equipment_match": item["equipment_match"],
+                    "recommended_reason": item["reason"],
+                }
+            )
+
+        return {
+            "chat_room_id": request_data.chat_room_id,
+            "user_id": request_data.user_id,
+            "user_nickname": user.nickname or "",
+            "user_location": user.road_address or "",
+            "final_disease": {
+                "id": int(disease.id),
+                "name": disease.name,
+                "description": getattr(disease, "description", ""),
+                "created_at": getattr(disease, "created_at", None),
+            },
+            "total_candidates": len(candidates),
+            "recommendations": recommendations,
+            "search_criteria": {
+                "max_distance": request_data.max_distance or 20.0,
+                "limit": request_data.limit or 3,
+            },
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"recommend-by-disease error: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="병원 추천 처리 중 오류가 발생했습니다.",
+        )
 
 
 @router.get("/equipment/categories", response_model=List[EquipmentCategoryResponse])

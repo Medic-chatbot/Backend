@@ -278,11 +278,12 @@ async def recommend_hospitals(request: HospitalRecommendationRequest):
     """
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
+            # 라이트 추천 엔드포인트 사용 (질환명 기반)
             response = await client.post(
-                f"{API_SERVICE_URL}/api/medical/recommend-hospitals",
+                f"{API_SERVICE_URL}/api/medical/recommend-by-disease",
                 json={
-                    "symptoms": request.disease_name,
-                    "location": request.user_location or "서울",
+                    "disease_name": request.disease_name,
+                    "user_id": request.user_id,
                     "chat_room_id": request.chat_room_id,
                 },
                 headers={"Content-Type": "application/json"},

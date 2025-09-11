@@ -405,9 +405,34 @@ async def websocket_endpoint(
 
                     # ML 서비스 호출
                     try:
-                        ml_result = await ml_client.get_full_analysis(
+                        # 1단계: 증상 분석 먼저 수행 (트래픽 감소 및 임계치 분기)
+                        analysis_result = await ml_client.analyze_symptom(
                             text=content, user_id=str(user_id), chat_room_id=room_id
                         )
+
+                        ml_result = None
+                        if analysis_result:
+                            # 상위 스코어 확인 후 0.8 이상일 때만 병원 추천 포함한 전체 분석 수행
+                            top_score = 0.0
+                            disease_classifications = analysis_result.get(
+                                "disease_classifications", []
+                            )
+                            if disease_classifications:
+                                top_score = (
+                                    disease_classifications[0].get("score", 0.0)
+                                    if isinstance(disease_classifications[0], dict)
+                                    else disease_classifications[0].score
+                                )
+
+                            if top_score >= 0.8:
+                                ml_result = await ml_client.get_full_analysis(
+                                    text=content,
+                                    user_id=str(user_id),
+                                    chat_room_id=room_id,
+                                )
+                            else:
+                                # 임계치 미만일 경우 전체 분석은 생략하고 분석 결과만 전달
+                                ml_result = analysis_result
 
                         if ml_result:
                             # ML 결과 DB 저장
@@ -415,7 +440,9 @@ async def websocket_endpoint(
                             from app.models.model_inference import ModelInferenceResult
 
                             # 증상 분석 결과 추출
-                            symptom_analysis = ml_result.get("symptom_analysis", {})
+                            symptom_analysis = ml_result.get(
+                                "symptom_analysis", ml_result
+                            )
                             disease_classifications = symptom_analysis.get(
                                 "disease_classifications", []
                             )
@@ -492,7 +519,11 @@ async def websocket_endpoint(
                                 )
                                 bot_content = symptom_msg + hospital_msg
                             else:
-                                bot_content = symptom_msg
+                                # 임계치 미만이면 추가 정보 요청 메시지 부가
+                                bot_content = (
+                                    symptom_msg
+                                    + "\n\n더 정확한 추천을 위해 증상을 조금만 더 자세히 알려주세요."
+                                )
                         else:
                             bot_content = "죄송합니다. 증상 분석 중 오류가 발생했습니다. 다시 시도해주세요."
 
