@@ -372,6 +372,32 @@ class HospitalRecommendationResponse(BaseModel):
 # ===== 장비 관련 스키마 =====
 
 
+class HospitalRecommendationByDiseaseRequest(BaseModel):
+    """질환명 기반 병원 추천(라이트) 요청"""
+
+    disease_name: str = Field(..., description="질환명")
+    user_id: str = Field(..., description="사용자 ID (UUID)")
+    chat_room_id: int = Field(..., description="채팅방 ID")
+    max_distance: Optional[float] = Field(20.0, description="최대 검색 거리 (km)")
+    limit: Optional[int] = Field(3, description="추천 병원 수")
+
+
+class HospitalRecommendationByDiseaseResponse(BaseModel):
+    """질환명 기반 병원 추천(라이트) 응답"""
+
+    chat_room_id: int
+    user_id: str
+    user_nickname: str
+    user_location: str
+    final_disease: Dict[str, Any]
+    total_candidates: int
+    recommendations: List[RecommendedHospitalResponse]
+    search_criteria: Dict[str, Any]
+
+    class Config:
+        from_attributes = True
+
+
 class EquipmentCategoryBase(BaseModel):
     """장비 대분류 기본 정보"""
 
