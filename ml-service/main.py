@@ -349,6 +349,74 @@ app = ml_api
 app.include_router(router)
 app.include_router(router, prefix="/ml")
 
+# =====================
+# 개발자용 디버그 엔드포인트 (오직 /ml/* 에서만 노출)
+# =====================
+
+dev_router = APIRouter()
+
+
+class DevTextRequest(BaseModel):
+    text: str
+
+
+@dev_router.post("/morph-only")
+async def dev_morph_only(req: DevTextRequest):
+    """형태소 분석기 결과만 반환 (개발자용)"""
+    if morph_analyzer is None:
+        raise HTTPException(status_code=503, detail="형태소 분석기가 아직 로드되지 않았습니다")
+    try:
+        pos = morph_analyzer.analyzer.pos(req.text, norm=True, stem=True)
+        stems = morph_analyzer.extract_stems(req.text, min_length=1, include_pos=False)
+        processed = morph_analyzer.extract_morphs_for_model(req.text)
+        return {
+            "original_text": req.text,
+            "pos": pos,
+            "stems": stems,
+            "processed_text": processed,
+        }
+    except Exception as e:
+        logger.error(f"morph-only 오류: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@dev_router.post("/analyze-with-morph")
+async def dev_analyze_with_morph(req: DevTextRequest):
+    """형태소 분석 + 모델 예측 결과 반환 (개발자용)"""
+    if pipeline_model is None or morph_analyzer is None:
+        raise HTTPException(status_code=503, detail="모델 또는 분석기가 아직 로드되지 않았습니다")
+    try:
+        pos = morph_analyzer.analyzer.pos(req.text, norm=True, stem=True)
+        processed = morph_analyzer.extract_morphs_for_model(req.text)
+        preds = pipeline_model([processed])
+        rows = []
+        try:
+            pred_list = preds[0] if isinstance(preds, list) else preds
+            if isinstance(pred_list, dict):
+                pred_iter = [pred_list]
+            else:
+                pred_iter = list(pred_list)
+            for p in pred_iter:
+                if isinstance(p, dict) and "label" in p and "score" in p:
+                    rows.append({"label": str(p["label"]), "score": float(p["score"])})
+        except Exception as _:
+            rows = []
+        rows.sort(key=lambda x: x["score"], reverse=True)
+        return {
+            "original_text": req.text,
+            "processed_text": processed,
+            "pos": pos,
+            "disease_classifications": rows,
+            "top_disease": rows[0]["label"] if rows else "알 수 없음",
+            "confidence": rows[0]["score"] if rows else 0.0,
+        }
+    except Exception as e:
+        logger.error(f"analyze-with-morph 오류: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# 개발자용 라우터는 /ml 하위에만 노출
+app.include_router(dev_router, prefix="/ml/dev")
+
 # Docs under /ml as well
 @app.get("/ml/openapi.json", include_in_schema=False)
 async def ml_openapi():
