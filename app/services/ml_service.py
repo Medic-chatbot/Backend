@@ -25,7 +25,6 @@ class MLServiceClient:
     async def analyze_symptom(
         self,
         text: str,
-        user_id: Optional[str] = None,
         chat_room_id: Optional[int] = None,
         authorization: Optional[str] = None,
     ) -> Dict:
@@ -38,9 +37,7 @@ class MLServiceClient:
                     f"{self.base_url}/analyze",
                     json={
                         "text": text,
-                        "user_id": user_id,
                         "chat_room_id": chat_room_id,
-                        "max_length": 512,
                     },
                     headers={
                         "Content-Type": "application/json",
@@ -70,7 +67,6 @@ class MLServiceClient:
     async def get_full_analysis(
         self,
         text: str,
-        user_id: Optional[str] = None,
         chat_room_id: Optional[int] = None,
         authorization: Optional[str] = None,
     ) -> Dict:
@@ -83,9 +79,7 @@ class MLServiceClient:
                     f"{self.base_url}/full-analysis",
                     json={
                         "text": text,
-                        "user_id": user_id,
                         "chat_room_id": chat_room_id,
-                        "max_length": 512,
                     },
                     headers={
                         "Content-Type": "application/json",

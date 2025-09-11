@@ -51,7 +51,6 @@ async def analyze_symptom(
         # ML 서비스 호출
         ml_result = await ml_client.analyze_symptom(
             text=request.text,
-            user_id=str(current_user.id),
             chat_room_id=request.chat_room_id,
             authorization=authorization,
         )
@@ -100,7 +99,6 @@ async def get_full_analysis(
         # ML 서비스 호출
         ml_result = await ml_client.get_full_analysis(
             text=request.text,
-            user_id=str(current_user.id),
             chat_room_id=request.chat_room_id,
             authorization=authorization,
         )

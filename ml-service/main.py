@@ -113,12 +113,14 @@ class KoreanStemExtractor:
 
 # Pydantic 모델들
 class SymptomRequest(BaseModel):
-    """증상 분석 요청"""
+    """증상 분석 요청 (토큰 인증, 최소 필드)
+
+    - text: 필수 입력 텍스트
+    - chat_room_id: (선택) 병원 추천 연계를 위한 채팅방 ID
+    """
 
     text: str
-    user_id: Optional[str] = None
     chat_room_id: Optional[int] = None
-    max_length: int = 512
 
 
 class DiseaseClassification(BaseModel):
@@ -129,15 +131,13 @@ class DiseaseClassification(BaseModel):
 
 
 class SymptomResponse(BaseModel):
-    """증상 분석 응답"""
+    """증상 분석 응답 (최소 필드)"""
 
     original_text: str
     processed_text: str
     disease_classifications: List[DiseaseClassification]
     top_disease: str
     confidence: float
-    user_id: Optional[str] = None
-    chat_room_id: Optional[int] = None
 
 
 class HospitalRecommendationRequest(BaseModel):
@@ -269,8 +269,6 @@ async def analyze_symptom(request: SymptomRequest):
             disease_classifications=disease_classifications,
             top_disease=top_disease,
             confidence=confidence,
-            user_id=request.user_id,
-            chat_room_id=request.chat_room_id,
         )
 
         logger.info(f"분석 완료 - 예측 질병: {top_disease} (신뢰도: {confidence:.4f})")
@@ -283,45 +281,25 @@ async def analyze_symptom(request: SymptomRequest):
         )
 
 
-@router.post("/recommend-hospitals")
-async def recommend_hospitals(
-    request: HospitalRecommendationRequest,
-    authorization: Optional[str] = None,
-):
-    """
-    질병명을 기반으로 병원 추천 요청
-    API 서비스의 병원 추천 엔드포인트 호출
-    """
+async def _call_recommend_hospitals(disease_name: str, chat_room_id: int, authorization: Optional[str]):
+    """내부 헬퍼: API 라이트 병원 추천 호출"""
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
-            # 라이트 추천 엔드포인트 사용 (질환명 기반)
             headers = {"Content-Type": "application/json"}
             if authorization:
                 headers["Authorization"] = authorization
-
             response = await client.post(
                 f"{API_SERVICE_URL}/api/medical/recommend-by-disease",
-                json={
-                    "disease_name": request.disease_name,
-                    "chat_room_id": request.chat_room_id,
-                },
+                json={"disease_name": disease_name, "chat_room_id": chat_room_id},
                 headers=headers,
             )
-
             if response.status_code == 200:
                 return response.json()
-            else:
-                logger.error(f"병원 추천 API 오류: {response.status_code}")
-                raise HTTPException(
-                    status_code=response.status_code,
-                    detail="병원 추천 서비스에서 오류가 발생했습니다",
-                )
-
-    except httpx.RequestError as e:
-        logger.error(f"병원 추천 요청 실패: {str(e)}")
-        raise HTTPException(
-            status_code=503, detail="병원 추천 서비스에 연결할 수 없습니다"
-        )
+            logger.error(f"병원 추천 API 오류: {response.status_code}")
+            return None
+    except Exception as e:
+        logger.warning(f"병원 추천 호출 실패: {e}")
+        return None
 
 
 from fastapi import Header
@@ -333,7 +311,7 @@ async def full_analysis(request: SymptomRequest, authorization: Optional[str] = 
     완전한 분석: 증상 분석 + (임계치 기반) 병원 추천
 
     - 증상 분석을 먼저 수행
-    - 최상위 질환 신뢰도(confidence)가 0.8 이상이고 user_id/chat_room_id가 있을 때만
+    - 최상위 질환 신뢰도(confidence)가 0.8 이상이고 chat_room_id가 있을 때만
       병원 추천 API를 호출하여 결과를 포함
     """
     try:
@@ -347,22 +325,10 @@ async def full_analysis(request: SymptomRequest, authorization: Optional[str] = 
         except Exception:
             confidence = 0.0
 
-        if (
-            confidence >= 0.8
-            and request.chat_room_id
-            and getattr(symptom_result, "top_disease", None)
-            and authorization
-        ):
-            hospital_request = HospitalRecommendationRequest(
-                disease_name=symptom_result.top_disease,
-                chat_room_id=request.chat_room_id,
+        if confidence >= 0.8 and request.chat_room_id and getattr(symptom_result, "top_disease", None) and authorization:
+            hospital_result = await _call_recommend_hospitals(
+                symptom_result.top_disease, request.chat_room_id, authorization
             )
-            try:
-                hospital_result = await recommend_hospitals(
-                    hospital_request, authorization=authorization
-                )
-            except Exception as e:
-                logger.warning(f"병원 추천 실패: {str(e)}")
 
         return {
             "symptom_analysis": symptom_result,
@@ -374,31 +340,7 @@ async def full_analysis(request: SymptomRequest, authorization: Optional[str] = 
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/")
-async def root():
-    """루트 엔드포인트"""
-    return {
-        "service": "Medic AI Service",
-        "version": "2.0.0",
-        "status": "running",
-        "endpoints": {
-            "health": "/health",
-            "analyze": "/analyze",
-            "recommend-hospitals": "/recommend-hospitals",
-            "full-analysis": "/full-analysis",
-            "docs": "/docs",
-        },
-    }
-
-# 디버그: 등록된 라우트 확인용
-@router.get("/routes")
-async def list_routes():
-    try:
-        return [
-            getattr(r, "path", None) or getattr(r, "path_format", None) for r in ml_api.router.routes
-        ]
-    except Exception:
-        return []
+# 루트/디버그 라우트 제거: 노출 단순화
 
 
 # 앱 노출: 동일 엔드포인트를 / 와 /ml 모두에서 제공
