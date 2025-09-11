@@ -173,11 +173,12 @@ async def load_model():
 
         # BERT 모델 로드 (Pipeline 방식)
         logger.info("BERT 모델 로딩...")
+        # Transformers deprecation 대응: return_all_scores → top_k=None 사용
         pipeline_model = pipeline(
             "text-classification",
             model=MODEL_NAME,
             device=0 if DEVICE == "cuda" else -1,
-            return_all_scores=True,
+            top_k=None,  # 모든 라벨 스코어 반환
         )
 
         # Direct 모델 로드 (백업용)
@@ -230,15 +231,26 @@ async def analyze_symptom(request: SymptomRequest):
             )
 
         # 2. BERT 모델 예측
-        predictions = pipeline_model(processed_text)
+        # 단일 입력에도 결과 shape를 일정하게 만들기 위해 리스트 입력으로 호출
+        predictions = pipeline_model([processed_text])
 
-        # 3. 결과 정리
-        disease_classifications = []
-        for pred_list in predictions:
-            for pred in pred_list:
-                disease_classifications.append(
-                    DiseaseClassification(label=pred["label"], score=pred["score"])
-                )
+        # 3. 결과 정리 (top_k=None 사용 시 [[{label,score}...]] 형태 기대)
+        disease_classifications: List[DiseaseClassification] = []
+        try:
+            pred_list = predictions[0] if isinstance(predictions, list) else predictions
+            # pred_list가 dict의 리스트라고 가정. 아니면 보수적으로 변환
+            if isinstance(pred_list, dict):
+                pred_iter = [pred_list]
+            else:
+                pred_iter = list(pred_list)
+
+            for pred in pred_iter:
+                if isinstance(pred, dict) and "label" in pred and "score" in pred:
+                    disease_classifications.append(
+                        DiseaseClassification(label=str(pred["label"]), score=float(pred["score"]))
+                    )
+        except Exception as _:
+            logger.warning("예측 결과 파싱 중 포맷 이슈 발생, 빈 결과로 처리")
 
         # 상위 질병 추출
         disease_classifications.sort(key=lambda x: x.score, reverse=True)
