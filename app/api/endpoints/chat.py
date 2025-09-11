@@ -410,7 +410,6 @@ async def websocket_endpoint(
                         bearer = f"Bearer {token}" if token else None
                         analysis_result = await ml_client.analyze_symptom(
                             text=content,
-                            user_id=str(user_id),
                             chat_room_id=room_id,
                             authorization=bearer,
                         )
@@ -432,7 +431,6 @@ async def websocket_endpoint(
                             if top_score >= 0.8:
                                 ml_result = await ml_client.get_full_analysis(
                                     text=content,
-                                    user_id=str(user_id),
                                     chat_room_id=room_id,
                                     authorization=bearer,
                                 )
