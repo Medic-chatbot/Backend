@@ -27,6 +27,7 @@ class MLServiceClient:
         text: str,
         user_id: Optional[str] = None,
         chat_room_id: Optional[int] = None,
+        authorization: Optional[str] = None,
     ) -> Dict:
         """
         증상 텍스트를 분석하여 질병 예측 결과 반환
@@ -41,7 +42,10 @@ class MLServiceClient:
                         "chat_room_id": chat_room_id,
                         "max_length": 512,
                     },
-                    headers={"Content-Type": "application/json"},
+                    headers={
+                        "Content-Type": "application/json",
+                        **({"Authorization": authorization} if authorization else {}),
+                    },
                 )
 
                 if response.status_code == 200:
@@ -68,6 +72,7 @@ class MLServiceClient:
         text: str,
         user_id: Optional[str] = None,
         chat_room_id: Optional[int] = None,
+        authorization: Optional[str] = None,
     ) -> Dict:
         """
         전체 분석: 증상 분석 + 병원 추천
@@ -82,7 +87,10 @@ class MLServiceClient:
                         "chat_room_id": chat_room_id,
                         "max_length": 512,
                     },
-                    headers={"Content-Type": "application/json"},
+                    headers={
+                        "Content-Type": "application/json",
+                        **({"Authorization": authorization} if authorization else {}),
+                    },
                 )
 
                 if response.status_code == 200:

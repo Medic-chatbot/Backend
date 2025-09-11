@@ -10,6 +10,7 @@ from app.models.user import User
 from app.services.ml_service import ml_client
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
+from fastapi import Header
 from sqlalchemy.orm import Session
 
 # 로거 설정
@@ -41,6 +42,7 @@ async def analyze_symptom(
     request: SymptomAnalysisRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    authorization: Optional[str] = Header(default=None),
 ):
     """
     증상 텍스트 분석 API 엔드포인트
@@ -51,6 +53,7 @@ async def analyze_symptom(
             text=request.text,
             user_id=str(current_user.id),
             chat_room_id=request.chat_room_id,
+            authorization=authorization,
         )
 
         if not ml_result:
@@ -88,6 +91,7 @@ async def get_full_analysis(
     request: SymptomAnalysisRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    authorization: Optional[str] = Header(default=None),
 ):
     """
     전체 분석: 증상 분석 + 병원 추천
@@ -98,6 +102,7 @@ async def get_full_analysis(
             text=request.text,
             user_id=str(current_user.id),
             chat_room_id=request.chat_room_id,
+            authorization=authorization,
         )
 
         if not ml_result:

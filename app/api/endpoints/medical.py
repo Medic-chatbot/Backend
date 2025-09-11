@@ -390,6 +390,7 @@ def recommend_by_disease(
     *,
     db: Session = Depends(get_db),
     request_data: HospitalRecommendationByDiseaseRequest,
+    current_user: User = Depends(get_current_user),
 ) -> Any:
     """
     질환명 + 사용자 위치 기반의 라이트 병원 추천
@@ -398,12 +399,10 @@ def recommend_by_disease(
     - 병원 추천 결과는 DB에 저장하지 않고 계산 결과만 응답
     """
     try:
-        # 사용자 조회 및 위치 확인
-        from uuid import UUID
-        user_uuid = UUID(request_data.user_id)
+        # 사용자 조회 및 위치 확인 (토큰 기반)
         from app.models.user import User
 
-        user = db.query(User).filter(User.id == user_uuid).first()
+        user = db.query(User).filter(User.id == current_user.id).first()
         if not user or user.latitude is None or user.longitude is None:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -481,7 +480,7 @@ def recommend_by_disease(
 
         return {
             "chat_room_id": request_data.chat_room_id,
-            "user_id": request_data.user_id,
+            "user_id": str(current_user.id),
             "user_nickname": user.nickname or "",
             "user_location": user.road_address or "",
             "final_disease": {

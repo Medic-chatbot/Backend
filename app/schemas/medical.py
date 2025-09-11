@@ -373,10 +373,13 @@ class HospitalRecommendationResponse(BaseModel):
 
 
 class HospitalRecommendationByDiseaseRequest(BaseModel):
-    """질환명 기반 병원 추천(라이트) 요청"""
+    """질환명 기반 병원 추천(라이트) 요청
+
+    - 사용자 식별은 토큰 기반(current_user)으로 수행
+    - 요청 바디에서는 user_id 제거
+    """
 
     disease_name: str = Field(..., description="질환명")
-    user_id: str = Field(..., description="사용자 ID (UUID)")
     chat_room_id: int = Field(..., description="채팅방 ID")
     max_distance: Optional[float] = Field(20.0, description="최대 검색 거리 (km)")
     limit: Optional[int] = Field(3, description="추천 병원 수")

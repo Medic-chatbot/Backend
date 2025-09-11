@@ -12,6 +12,8 @@ from typing import Any, Dict, List, Optional
 import httpx
 import torch
 from fastapi import FastAPI, HTTPException, APIRouter
+from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi.openapi.docs import get_swagger_ui_html
 from konlpy.tag import Okt
 from pydantic import BaseModel
 from transformers import AutoModelForSequenceClassification, AutoTokenizer, pipeline
@@ -139,10 +141,9 @@ class SymptomResponse(BaseModel):
 
 
 class HospitalRecommendationRequest(BaseModel):
-    """병원 추천 요청"""
+    """병원 추천 요청 (토큰 기반 사용자 식별)"""
 
     disease_name: str
-    user_id: str
     chat_room_id: int
     user_location: Optional[str] = None
 
@@ -271,7 +272,10 @@ async def analyze_symptom(request: SymptomRequest):
 
 
 @router.post("/recommend-hospitals")
-async def recommend_hospitals(request: HospitalRecommendationRequest):
+async def recommend_hospitals(
+    request: HospitalRecommendationRequest,
+    authorization: Optional[str] = None,
+):
     """
     질병명을 기반으로 병원 추천 요청
     API 서비스의 병원 추천 엔드포인트 호출
@@ -279,14 +283,17 @@ async def recommend_hospitals(request: HospitalRecommendationRequest):
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             # 라이트 추천 엔드포인트 사용 (질환명 기반)
+            headers = {"Content-Type": "application/json"}
+            if authorization:
+                headers["Authorization"] = authorization
+
             response = await client.post(
                 f"{API_SERVICE_URL}/api/medical/recommend-by-disease",
                 json={
                     "disease_name": request.disease_name,
-                    "user_id": request.user_id,
                     "chat_room_id": request.chat_room_id,
                 },
-                headers={"Content-Type": "application/json"},
+                headers=headers,
             )
 
             if response.status_code == 200:
@@ -305,25 +312,43 @@ async def recommend_hospitals(request: HospitalRecommendationRequest):
         )
 
 
+from fastapi import Header
+
+
 @router.post("/full-analysis")
-async def full_analysis(request: SymptomRequest):
+async def full_analysis(request: SymptomRequest, authorization: Optional[str] = Header(default=None)):
     """
-    완전한 분석: 증상 분석 + 병원 추천
+    완전한 분석: 증상 분석 + (임계치 기반) 병원 추천
+
+    - 증상 분석을 먼저 수행
+    - 최상위 질환 신뢰도(confidence)가 0.8 이상이고 user_id/chat_room_id가 있을 때만
+      병원 추천 API를 호출하여 결과를 포함
     """
     try:
         # 1. 증상 분석
         symptom_result = await analyze_symptom(request)
 
-        # 2. 병원 추천 (user_id가 있는 경우에만)
+        # 2. 임계치 기반 병원 추천
         hospital_result = None
-        if request.user_id and request.chat_room_id and symptom_result.top_disease:
+        try:
+            confidence = getattr(symptom_result, "confidence", 0.0) or 0.0
+        except Exception:
+            confidence = 0.0
+
+        if (
+            confidence >= 0.8
+            and request.chat_room_id
+            and getattr(symptom_result, "top_disease", None)
+            and authorization
+        ):
             hospital_request = HospitalRecommendationRequest(
                 disease_name=symptom_result.top_disease,
-                user_id=request.user_id,
                 chat_room_id=request.chat_room_id,
             )
             try:
-                hospital_result = await recommend_hospitals(hospital_request)
+                hospital_result = await recommend_hospitals(
+                    hospital_request, authorization=authorization
+                )
             except Exception as e:
                 logger.warning(f"병원 추천 실패: {str(e)}")
 
@@ -369,6 +394,18 @@ app = ml_api
 # 라우터 이중 등록: /, /ml
 app.include_router(router)
 app.include_router(router, prefix="/ml")
+
+# Docs under /ml as well
+@app.get("/ml/openapi.json", include_in_schema=False)
+async def ml_openapi():
+    return JSONResponse(app.openapi())
+
+@app.get("/ml/docs", response_class=HTMLResponse, include_in_schema=False)
+async def ml_docs():
+    return get_swagger_ui_html(
+        openapi_url="/ml/openapi.json",
+        title="Medic AI Service (ML) - Docs",
+    )
 
 if __name__ == "__main__":
     import uvicorn

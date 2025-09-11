@@ -406,8 +406,13 @@ async def websocket_endpoint(
                     # ML 서비스 호출
                     try:
                         # 1단계: 증상 분석 먼저 수행 (트래픽 감소 및 임계치 분기)
+                        # WebSocket 쿼리 파라미터의 토큰을 Bearer로 전달
+                        bearer = f"Bearer {token}" if token else None
                         analysis_result = await ml_client.analyze_symptom(
-                            text=content, user_id=str(user_id), chat_room_id=room_id
+                            text=content,
+                            user_id=str(user_id),
+                            chat_room_id=room_id,
+                            authorization=bearer,
                         )
 
                         ml_result = None
@@ -429,6 +434,7 @@ async def websocket_endpoint(
                                     text=content,
                                     user_id=str(user_id),
                                     chat_room_id=room_id,
+                                    authorization=bearer,
                                 )
                             else:
                                 # 임계치 미만일 경우 전체 분석은 생략하고 분석 결과만 전달
