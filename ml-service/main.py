@@ -14,7 +14,7 @@ import torch
 from fastapi import FastAPI, HTTPException, APIRouter
 from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.openapi.docs import get_swagger_ui_html
-from konlpy.tag import Okt
+from konlpy.tag import Kkma
 from pydantic import BaseModel
 from transformers import AutoModelForSequenceClassification, AutoTokenizer, pipeline
 
@@ -46,11 +46,11 @@ morph_analyzer = None
 
 
 class KoreanStemExtractor:
-    """한국어 형태소 분석 및 어간 추출 (OKT)"""
+    """한국어 형태소 분석 (Kkma)"""
 
     def __init__(self):
-        self.analyzer_name = "okt"
-        self.analyzer = Okt()
+        self.analyzer_name = "kkma"
+        self.analyzer = Kkma()
 
     def extract_stems(self, text, min_length=1, include_pos=False):
         """
@@ -60,26 +60,15 @@ class KoreanStemExtractor:
             return []
 
         try:
-            # 형태소 분석
-            morphs = self.analyzer.pos(text, norm=True, stem=True)
+            # 형태소 분석 (Kkma)
+            morphs = self.analyzer.pos(text)
 
             stems = []
             for word, pos in morphs:
-                # 동사(V), 형용사(A), 명사(N) 처리
-                if pos.startswith("V") or pos.startswith("A"):
-                    # 동사/형용사의 어간 추출
+                # Kkma 품사 태그 기준: N(명사), V(용언 포함), VA/VV(형용사/동사) 등
+                if pos.startswith("N") or pos.startswith("V") or pos.startswith("VA"):
                     if len(word) >= min_length:
-                        if include_pos:
-                            stems.append((word, pos))
-                        else:
-                            stems.append(word)
-                elif pos.startswith("N"):
-                    # 명사의 어근 추출
-                    if len(word) >= min_length:
-                        if include_pos:
-                            stems.append((word, pos))
-                        else:
-                            stems.append(word)
+                        stems.append((word, pos) if include_pos else word)
 
             return stems
 
@@ -366,7 +355,7 @@ async def dev_morph_only(req: DevTextRequest):
     if morph_analyzer is None:
         raise HTTPException(status_code=503, detail="형태소 분석기가 아직 로드되지 않았습니다")
     try:
-        pos = morph_analyzer.analyzer.pos(req.text, norm=True, stem=True)
+        pos = morph_analyzer.analyzer.pos(req.text)
         stems = morph_analyzer.extract_stems(req.text, min_length=1, include_pos=False)
         processed = morph_analyzer.extract_morphs_for_model(req.text)
         return {
@@ -386,7 +375,7 @@ async def dev_analyze_with_morph(req: DevTextRequest):
     if pipeline_model is None or morph_analyzer is None:
         raise HTTPException(status_code=503, detail="모델 또는 분석기가 아직 로드되지 않았습니다")
     try:
-        pos = morph_analyzer.analyzer.pos(req.text, norm=True, stem=True)
+        pos = morph_analyzer.analyzer.pos(req.text)
         processed = morph_analyzer.extract_morphs_for_model(req.text)
         preds = pipeline_model([processed])
         rows = []
