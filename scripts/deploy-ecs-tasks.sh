@@ -18,7 +18,6 @@ check_env_vars() {
         "ECR_REGISTRY"
         "ECR_API_SERVICE"
         "ECR_ML_SERVICE"
-        "ECR_NGINX"
         "DB_HOST"
         "DB_PASSWORD"
         "SECRET_KEY"
