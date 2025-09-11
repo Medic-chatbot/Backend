@@ -15,8 +15,12 @@ class MLServiceClient:
     """ML 서비스 클라이언트"""
 
     def __init__(self):
-        self.base_url = getattr(settings, "ML_SERVICE_URL", "http://localhost:8001")
         self.timeout = 30.0
+
+    @property
+    def base_url(self) -> str:
+        # 항상 최신 환경 설정을 반영
+        return getattr(settings, "ML_SERVICE_URL", "http://ml-service:8001")
 
     async def analyze_symptom(
         self,

@@ -1,17 +1,17 @@
 {
   "family": "medic-ml-service",
-  "networkMode": "host",
+  "networkMode": "bridge",
   "requiresCompatibilities": [
     "EC2"
   ],
   "cpu": "3584",
-  "memory": "12288",
+  "memory": "14336",
   "executionRoleArn": "arn:aws:iam::832362089079:role/medic-gpu-cluster-task-execution-role",
   "taskRoleArn": "arn:aws:iam::832362089079:role/medic-gpu-cluster-task-role",
   "containerDefinitions": [
     {
       "name": "medic-ml-container",
-      "image": "${ECR_ML_SERVICE}:latest",
+      "image": "${ECR_ML_SERVICE}:${IMAGE_TAG}",
       "portMappings": [
         {
           "containerPort": 8001,
@@ -30,6 +30,7 @@
           "awslogs-stream-prefix": "ecs"
         }
       },
+      
       "environment": [
         {
           "name": "MODEL_NAME",
@@ -71,10 +72,5 @@
     }
   ],
   "volumes": [],
-  "placementConstraints": [
-    {
-      "type": "memberOf",
-      "expression": "attribute:environment == prod"
-    }
-  ]
+  "placementConstraints": []
 }

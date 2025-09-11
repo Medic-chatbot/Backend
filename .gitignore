@@ -101,3 +101,4 @@ alembic/__pycache__/
 scripts/logs/
 scripts/tmp/
 
+tools/

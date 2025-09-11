@@ -11,8 +11,8 @@ from typing import Any, Dict, List, Optional
 
 import httpx
 import torch
-from fastapi import FastAPI, HTTPException
-from konlpy.tag import Hannanum, Kkma, Okt
+from fastapi import FastAPI, HTTPException, APIRouter
+from konlpy.tag import Okt
 from pydantic import BaseModel
 from transformers import AutoModelForSequenceClassification, AutoTokenizer, pipeline
 
@@ -20,7 +20,8 @@ from transformers import AutoModelForSequenceClassification, AutoTokenizer, pipe
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(
+# 내부 서비스 앱(실제 라우트가 등록되는 앱)
+ml_api = FastAPI(
     title="Medic AI Service",
     description="한국어 의료 증상 분석 및 질병 예측 서비스",
     version="2.0.0",
@@ -43,24 +44,11 @@ morph_analyzer = None
 
 
 class KoreanStemExtractor:
-    """한국어 형태소 분석 및 어간 추출 클래스"""
+    """한국어 형태소 분석 및 어간 추출 (OKT)"""
 
-    def __init__(self, analyzer="okt"):
-        """
-        형태소 분석기 초기화
-        analyzer: 'okt', 'kkma', 'hannanum' 중 선택
-        """
-        self.analyzer_name = analyzer.lower()
-        if self.analyzer_name == "okt":
-            self.analyzer = Okt()
-        elif self.analyzer_name == "kkma":
-            self.analyzer = Kkma()
-        elif self.analyzer_name == "hannanum":
-            self.analyzer = Hannanum()
-        else:
-            logger.warning("지원하지 않는 분석기입니다. Okt를 사용합니다.")
-            self.analyzer = Okt()
-            self.analyzer_name = "okt"
+    def __init__(self):
+        self.analyzer_name = "okt"
+        self.analyzer = Okt()
 
     def extract_stems(self, text, min_length=1, include_pos=False):
         """
@@ -169,7 +157,7 @@ class HealthResponse(BaseModel):
     analyzer: str
 
 
-@app.on_event("startup")
+@ml_api.on_event("startup")
 async def load_model():
     """애플리케이션 시작 시 모델 및 분석기 로드"""
     global tokenizer, model, pipeline_model, morph_analyzer
@@ -180,7 +168,7 @@ async def load_model():
 
         # 형태소 분석기 초기화
         logger.info("형태소 분석기 초기화...")
-        morph_analyzer = KoreanStemExtractor(analyzer="okt")
+        morph_analyzer = KoreanStemExtractor()
 
         # BERT 모델 로드 (Pipeline 방식)
         logger.info("BERT 모델 로딩...")
@@ -204,7 +192,9 @@ async def load_model():
         raise e
 
 
-@app.get("/health", response_model=HealthResponse)
+router = APIRouter()
+
+@router.get("/health", response_model=HealthResponse)
 async def health_check():
     """헬스체크 엔드포인트"""
     return HealthResponse(
@@ -216,7 +206,7 @@ async def health_check():
     )
 
 
-@app.post("/analyze", response_model=SymptomResponse)
+@router.post("/analyze", response_model=SymptomResponse)
 async def analyze_symptom(request: SymptomRequest):
     """
     증상 텍스트 분석 및 질병 예측
@@ -280,7 +270,7 @@ async def analyze_symptom(request: SymptomRequest):
         )
 
 
-@app.post("/recommend-hospitals")
+@router.post("/recommend-hospitals")
 async def recommend_hospitals(request: HospitalRecommendationRequest):
     """
     질병명을 기반으로 병원 추천 요청
@@ -314,7 +304,7 @@ async def recommend_hospitals(request: HospitalRecommendationRequest):
         )
 
 
-@app.post("/full-analysis")
+@router.post("/full-analysis")
 async def full_analysis(request: SymptomRequest):
     """
     완전한 분석: 증상 분석 + 병원 추천
@@ -346,7 +336,7 @@ async def full_analysis(request: SymptomRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/")
+@router.get("/")
 async def root():
     """루트 엔드포인트"""
     return {
@@ -362,8 +352,23 @@ async def root():
         },
     }
 
+# 디버그: 등록된 라우트 확인용
+@router.get("/routes")
+async def list_routes():
+    try:
+        return [
+            getattr(r, "path", None) or getattr(r, "path_format", None) for r in ml_api.router.routes
+        ]
+    except Exception:
+        return []
+
+
+# 앱 노출: 동일 엔드포인트를 / 와 /ml 모두에서 제공
+app = ml_api
+# 라우터 이중 등록: /, /ml
+app.include_router(router)
+app.include_router(router, prefix="/ml")
 
 if __name__ == "__main__":
     import uvicorn
-
     uvicorn.run(app, host="0.0.0.0", port=8001)

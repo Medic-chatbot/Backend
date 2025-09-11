@@ -11,7 +11,7 @@
   "containerDefinitions": [
     {
       "name": "medic-api-container",
-      "image": "${ECR_API_SERVICE}:latest",
+      "image": "${ECR_API_SERVICE}:${IMAGE_TAG}",
       "portMappings": [
         {
           "containerPort": 8000,
