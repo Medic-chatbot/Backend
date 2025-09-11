@@ -1,5 +1,5 @@
 # BERT 모델 서비스용 Dockerfile
-FROM pytorch/pytorch:2.0.1-cuda11.7-cudnn8-runtime
+FROM pytorch/pytorch:2.1.2-cuda11.8-cudnn8-runtime
 
 WORKDIR /app
 
@@ -15,13 +15,12 @@ RUN apt-get update && apt-get install -y \
 ENV JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
 ENV PATH=$JAVA_HOME/bin:$PATH
 
-# Python dependencies (torch 제외 - base 이미지에 이미 설치됨)
+# Python dependencies
 COPY ml-service/requirements-ml.txt .
 # JPype을 먼저 설치 (Java와 연동)
 RUN pip install --no-cache-dir jpype1
-# torch 제외하고 설치 (base 이미지에 이미 설치됨)
-RUN sed '/^torch/d' requirements-ml.txt > requirements-ml-no-torch.txt && \
-    pip install --no-cache-dir -r requirements-ml-no-torch.txt
+# PyTorch가 이미 베이스 이미지에 설치되어 있으므로 requirements만 설치
+RUN pip install --no-cache-dir -r requirements-ml.txt
 
 # 애플리케이션 코드 복사
 COPY ml-service/main.py .
