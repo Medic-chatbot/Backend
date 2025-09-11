@@ -114,18 +114,24 @@ jobs:
     - name: Create or Update ECS Services
       if: steps.env.outputs.environment == 'prod'
       run: |
+        # 최신 태스크 정의 ARN 조회
+        API_TD=$(aws ecs list-task-definitions --family-prefix medic-api-service --region ${{ env.AWS_REGION }} --sort DESC --max-items 1 --query 'taskDefinitionArns[0]' --output text)
+        ML_TD=$(aws ecs list-task-definitions --family-prefix medic-ml-service --region ${{ env.AWS_REGION }} --sort DESC --max-items 1 --query 'taskDefinitionArns[0]' --output text)
+        echo "Using task definitions:\nAPI=$API_TD\nML=$ML_TD"
+
         # API 서비스 생성 또는 업데이트
         if aws ecs describe-services --cluster medic-gpu-cluster --services medic-api-service --region ${{ env.AWS_REGION }} --query 'services[0].status' --output text 2>/dev/null | grep -q ACTIVE; then
           echo "API 서비스 업데이트 중..."
           aws ecs update-service --cluster medic-gpu-cluster \
                                 --service medic-api-service \
+                                --task-definition "$API_TD" \
                                 --force-new-deployment \
                                 --region ${{ env.AWS_REGION }}
         else
           echo "API 서비스 생성 중..."
           aws ecs create-service --cluster medic-gpu-cluster \
                                 --service-name medic-api-service \
-                                --task-definition medic-api-service \
+                                --task-definition "$API_TD" \
                                 --desired-count 1 \
                                 --launch-type FARGATE \
                                 --network-configuration "awsvpcConfiguration={subnets=[subnet-0af516b746f51bf50],securityGroups=[sg-02d21d7d277ed217d]}" \
@@ -138,13 +144,14 @@ jobs:
           echo "ML 서비스 업데이트 중..."
           aws ecs update-service --cluster medic-gpu-cluster \
                                 --service medic-ml-service \
+                                --task-definition "$ML_TD" \
                                 --force-new-deployment \
                                 --region ${{ env.AWS_REGION }}
         else
           echo "ML 서비스 생성 중..."
           aws ecs create-service --cluster medic-gpu-cluster \
                                 --service-name medic-ml-service \
-                                --task-definition medic-ml-service \
+                                --task-definition "$ML_TD" \
                                 --desired-count 1 \
                                 --launch-type EC2 \
                                 --load-balancers targetGroupArn=arn:aws:elasticloadbalancing:ap-northeast-2:832362089079:targetgroup/medic-gpu-cluster-ml-tg/3c61d34b09a1419a,containerName=medic-ml-container,containerPort=8001 \
