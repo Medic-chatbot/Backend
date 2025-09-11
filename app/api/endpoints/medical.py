@@ -5,7 +5,8 @@
 import logging
 from typing import Any, List, Optional
 
-from app.api.deps import get_db
+from app.api.deps import get_db, get_current_user
+from app.models.user import User
 from app.schemas.medical import (
     DepartmentDetailResponse,
     DepartmentResponse,
