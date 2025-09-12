@@ -388,7 +388,7 @@ class MedicalService:
 
     @staticmethod
     def get_hospitals_by_type(
-        db: Session, type_code: str | None = None, type_name: str | None = None
+        db: Session, type_code: Optional[str] = None, type_name: Optional[str] = None
     ) -> List[Hospital]:
         query = db.query(Hospital)
         if type_code:
@@ -451,8 +451,9 @@ class MedicalService:
         db: Session, category_id: int
     ) -> List[Hospital]:
         """특정 장비 대분류를 보유한 병원 목록 조회 (새로운 구조)"""
-        return (
-            db.query(Hospital)
+        # JSON 컬럼 DISTINCT 이슈 회피: id만 distinct 후 엔티티 로드
+        id_rows = (
+            db.query(Hospital.id)
             .join(HospitalEquipment)
             .filter(
                 HospitalEquipment.equipment_category_id == category_id,
@@ -462,6 +463,10 @@ class MedicalService:
             .distinct()
             .all()
         )
+        ids = [r[0] for r in id_rows]
+        if not ids:
+            return []
+        return db.query(Hospital).filter(Hospital.id.in_(ids)).all()
 
     @staticmethod
     def get_hospitals_by_equipment_subcategory(

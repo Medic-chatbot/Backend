@@ -365,6 +365,8 @@ class RecommendedHospitalResponse(BaseModel):
     equipment_match: bool
     recommended_reason: str
     specialist_count: Optional[int] = None
+    equipment_details: Optional[List[Dict[str, Any]]] = None
+    score_breakdown: Optional[Dict[str, Any]] = None
 
     class Config:
         from_attributes = True
@@ -414,6 +416,7 @@ class HospitalRecommendationByDiseaseResponse(BaseModel):
     total_candidates: int
     recommendations: List[RecommendedHospitalResponse]
     search_criteria: Dict[str, Any]
+    required_equipment: Optional[List[str]] = None
 
     class Config:
         from_attributes = True

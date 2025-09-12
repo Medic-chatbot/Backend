@@ -189,6 +189,7 @@ class MLServiceClient:
                 message += f"\n{i}. **{name}**\n   📍 {address}\n"
                 if phone and phone != "전화번호 정보 없음":
                     message += f"   📞 {phone}\n"
+
                 # 병원별 장비 상세(있을 때만)
                 if req_equips:
                     details = h.get("equipment_details") or []
@@ -201,6 +202,38 @@ class MLServiceClient:
                                 parts.append(f"{n} x {q}")
                         if parts:
                             message += f"   🔧 장비: " + ", ".join(parts) + "\n"
+
+                # 랭킹 이유(점수 요약)
+                sb = h.get("score_breakdown") or {}
+                if sb:
+                    try:
+                        es = sb.get("equipment_score")
+                        ss = sb.get("specialist_score")
+                        ds = sb.get("distance_score")
+                        fs = sb.get("final_score")
+                        mc = sb.get("matched_equipment_count")
+                        tr = sb.get("total_required_equipment")
+                        weights = sb.get("weights", {})
+                        w_e = weights.get("equip")
+                        w_s = weights.get("spec")
+                        w_d = weights.get("dist")
+                        if fs is not None:
+                            message += f"   ⭐ 총점: {fs}"
+                            # 가장 큰 기여 요인 표시
+                            comps = [("장비", es or 0), ("전문의", ss or 0), ("거리", ds or 0)]
+                            comps.sort(key=lambda x: x[1], reverse=True)
+                            top_name, top_val = comps[0]
+                            message += f" (최대 기여: {top_name} {top_val})\n"
+                        # 상세 점수 표기
+                        if es is not None and ss is not None and ds is not None and w_e and w_s and w_d:
+                            message += (
+                                f"   📊 점수: 장비 {es}/{w_e}, 전문의 {ss}/{w_s}, 거리 {ds}/{w_d}\n"
+                            )
+                        # 우선순위 보너스는 사용자 메시지에서 비노출 (불확정 요인)
+                        if tr:
+                            message += f"   📌 필수장비 매칭: {mc}/{tr}\n"
+                    except Exception:
+                        pass
         else:
             message += "해당 질병에 대한 병원 정보를 찾을 수 없습니다."
 

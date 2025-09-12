@@ -4,7 +4,7 @@
 
 import logging
 import math
-from typing import List, Optional, Tuple, Dict
+from typing import List, Optional, Tuple, Dict, Union
 
 from app.models.department import Department, DepartmentDisease, HospitalDepartment
 from app.models.equipment import (
@@ -81,7 +81,7 @@ class HospitalRecommendationService:
         specialist_count: int = 0,
         hospital_type_name: Optional[str] = None,
         max_distance_km: float = 5.0,
-    ) -> Tuple[float, str, float]:
+    ) -> Tuple[float, str, float, Dict[str, Union[int, float, str]]]:
         """
         병원 추천 점수 계산
 
@@ -101,12 +101,17 @@ class HospitalRecommendationService:
             W_EQUIP, W_SPEC, W_DIST = 30.0, 40.0, 30.0
 
         # 1. 장비 점수 계산 (가중치 W_EQUIP)
+        matched_count = 0
+        total_required = len(required_equipment or [])
+        matched_names: List[str] = []
         if required_equipment:
             # 필수장비가 있는 경우: 보유율 계산
             matched_equipment = set(required_equipment) & set(hospital_equipment)
-            equipment_score = (len(matched_equipment) / max(1, len(required_equipment))) * W_EQUIP
+            matched_count = len(matched_equipment)
+            matched_names = sorted(list(matched_equipment))
+            equipment_score = (matched_count / max(1, len(required_equipment))) * W_EQUIP
             equipment_reason = (
-                f"필수장비 {len(matched_equipment)}/{len(required_equipment)} 보유"
+                f"필수장비 {matched_count}/{len(required_equipment)} 보유"
             )
         else:
             # 필수장비가 없는 경우: 보유장비 수로 점수 (과도한 영향 방지)
@@ -116,7 +121,11 @@ class HospitalRecommendationService:
             equipment_reason = f"장비 {equipment_count}개"
 
         # 2. 전문의 수 점수 (가중치 W_SPEC)
-        specialist_score = min(max(specialist_count, 0), 100)
+        try:
+            sc_val = int(specialist_count) if specialist_count is not None else 0
+        except Exception:
+            sc_val = 0
+        specialist_score = min(max(sc_val, 0), 100)
         # log1p 근사: 루트 기반 완만 상승 (전문의 9명≈30점 상한에 맞춤)
         specialist_score = min((specialist_score ** 0.5) * (W_SPEC / 3.0), W_SPEC)
 
@@ -136,7 +145,7 @@ class HospitalRecommendationService:
 
         final_score = base_score + priority_bonus
         full_reason = (
-            f"{equipment_reason}, 전문의수 {specialist_count}명, 거리 {distance_km:.1f}km"
+            f"{equipment_reason}, 전문의수 {sc_val}명, 거리 {distance_km:.1f}km"
         )
 
         # 상세 로그 (디버그)
@@ -157,7 +166,17 @@ class HospitalRecommendationService:
                 },
             }
         )
-        return final_score, full_reason, priority
+        breakdown = {
+            "weights": {"equip": W_EQUIP, "spec": W_SPEC, "dist": W_DIST},
+            "equipment_score": round(equipment_score, 3),
+            "specialist_score": round(specialist_score, 3),
+            "distance_score": round(distance_score, 3),
+            "priority_bonus": round(priority_bonus, 3),
+            "final_score": round(final_score, 3),
+            "matched_equipment_count": matched_count,
+            "total_required_equipment": total_required,
+        }
+        return final_score, full_reason, priority, breakdown
 
     @staticmethod
     def get_required_equipment_for_disease(db: Session, disease_id: int) -> List[str]:
@@ -232,14 +251,27 @@ class HospitalRecommendationService:
             .subquery()
         )
 
-        # 2단계: 진료과 보유 병원 조회
-        hospitals_with_departments = (
-            db.query(Hospital)
+        # 2단계: 진료과 보유 병원 조회 (JSON 컬럼 DISTINCT 이슈 회피)
+        hospital_id_rows = (
+            db.query(Hospital.id)
             .join(HospitalDepartment)
             .filter(HospitalDepartment.department_id.in_(department_ids))
-            .filter(~Hospital.hospital_type_name.in_(HospitalRecommendationService.HOSPITAL_TYPE_EXCLUDE))
-            .options(joinedload(Hospital.equipment))
+            .filter(
+                ~Hospital.hospital_type_name.in_(
+                    HospitalRecommendationService.HOSPITAL_TYPE_EXCLUDE
+                )
+            )
             .distinct()
+            .all()
+        )
+        hospital_ids = [r[0] for r in hospital_id_rows]
+        if not hospital_ids:
+            return []
+
+        hospitals_with_departments = (
+            db.query(Hospital)
+            .filter(Hospital.id.in_(hospital_ids))
+            .options(joinedload(Hospital.equipment))
             .all()
         )
 
@@ -355,7 +387,7 @@ class HospitalRecommendationService:
             )
 
             # 점수 계산
-            score, reason, priority = (
+            score, reason, priority, breakdown = (
                 HospitalRecommendationService.calculate_recommendation_score(
                     hospital._calculated_distance,
                     required_equipment,
@@ -380,6 +412,7 @@ class HospitalRecommendationService:
                     ),
                     "priority": priority,
                     "specialist_count": specialist_count,
+                    "score_breakdown": breakdown,
                 }
             )
 
@@ -432,7 +465,7 @@ class HospitalRecommendationService:
     @staticmethod
     def get_equipment_details_for_hospital(
         db: Session, hospital_id: int, required_equipment_names: List[str]
-    ) -> List[Dict[str, str | int]]:
+    ) -> List[Dict[str, Union[str, int]]]:
         """병원이 보유한 '필수 장비(대분류)'에 대한 상세 목록(이름/코드/수량)을 반환.
         required_equipment_names가 비어있으면 빈 리스트 반환.
         """
