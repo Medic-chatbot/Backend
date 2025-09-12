@@ -403,14 +403,22 @@ async def websocket_endpoint(
                         room_id,
                     )
 
-                    # ML 서비스 호출
+                    # ML 서비스 호출 (이전 사용자 증상과 합쳐 추론)
                     try:
                         # WebSocket 토큰을 Bearer로 전달
                         bearer = f"Bearer {token}" if token else None
 
-                        # 중복 로직 제거: 전체 분석 엔드포인트에서 임계치/추천 여부를 일괄 판단
+                        # 이전 USER 메시지들과 현재 메시지를 결합하여 더 풍부한 증상 맥락 제공
+                        from app.core.config import settings
+                        history_msgs = ChatService.get_chat_messages(db, room_id, limit=100)
+                        user_texts = [m.content for m in history_msgs if getattr(m, 'message_type', '') == 'USER']
+                        # 최근 N개 사용자 문장만 사용
+                        n = int(getattr(settings, 'SYMPTOM_HISTORY_UTTERANCES', 5) or 5)
+                        combined_text = "\n".join(user_texts[-n:]) if user_texts else content
+
+                        # 전체 분석 엔드포인트에서 임계치/추천 여부를 일괄 판단
                         ml_result = await ml_client.get_full_analysis(
-                            text=content,
+                            text=combined_text,
                             chat_room_id=room_id,
                             authorization=bearer,
                         )

@@ -56,6 +56,7 @@ class Settings(BaseSettings):
     # 추천 관련 공통 설정(로깅/분기 통일성)
     RECOMMEND_CONFIDENCE_THRESHOLD: float = 0.8
     RECOMMEND_LIMIT: int = 3
+    SYMPTOM_HISTORY_UTTERANCES: int = 5
 
     @property
     def ML_SERVICE_URL_ALB(self) -> str:

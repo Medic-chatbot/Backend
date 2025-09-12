@@ -35,6 +35,10 @@
           "value": "${DB_HOST}"
         },
         {
+          "name": "SYMPTOM_HISTORY_UTTERANCES",
+          "value": "${SYMPTOM_HISTORY_UTTERANCES}"
+        },
+        {
           "name": "RECOMMEND_CONFIDENCE_THRESHOLD",
           "value": "${RECOMMEND_CONFIDENCE_THRESHOLD}"
         },

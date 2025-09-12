@@ -103,5 +103,6 @@ scripts/logs/
 scripts/tmp/
 scripts/migrate-simple.sh
 scripts/migrate.sh
+scripts/README.md
 
 #tools/
