@@ -84,6 +84,7 @@ build/
 
 # Large data files
 docs/
+tools/
 *.json.gz
 
 .gitmessage.txt
@@ -104,4 +105,4 @@ scripts/tmp/
 scripts/migrate-simple.sh
 scripts/migrate.sh
 
-tools/
+
