@@ -17,13 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 # 로거 설정
-logger = logging.getLogger("auth")
-logger.setLevel(logging.DEBUG)
-handler = logging.StreamHandler(sys.stdout)
-handler.setLevel(logging.DEBUG)
-formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-handler.setFormatter(formatter)
-logger.addHandler(handler)
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -36,12 +30,10 @@ def register(
 ) -> Any:
     """새로운 사용자 등록"""
     try:
-        print(f"[Register] Starting registration for email: {user_in.email}")
         logger.debug(f"[Register] Starting registration for email: {user_in.email}")
 
         user = db.query(User).filter(User.email == user_in.email).first()
         if user:
-            print(f"[Register] User already exists: {user_in.email}")
             logger.debug(f"[Register] User already exists: {user_in.email}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -49,7 +41,6 @@ def register(
             )
 
         hashed_password = get_password_hash(user_in.password)
-        print(f"[Register] Generated password hash: {hashed_password}")
         logger.debug(f"[Register] Generated password hash: {hashed_password}")
 
         user = User(
@@ -63,30 +54,24 @@ def register(
             longitude=user_in.longitude,
         )
 
-        print(f"[Register] Adding user to database: {user.email}")
         logger.debug(f"[Register] Adding user to database: {user.email}")
         db.add(user)
 
-        print("[Register] Committing transaction...")
         logger.debug("[Register] Committing transaction...")
         db.commit()
 
-        print("[Register] Refreshing user object...")
         logger.debug("[Register] Refreshing user object...")
         db.refresh(user)
 
-        print(f"[Register] Successfully registered user: {user.email}")
         logger.debug(f"[Register] Successfully registered user: {user.email}")
 
         # DB에 실제로 저장되었는지 확인
         check_user = db.query(User).filter(User.email == user_in.email).first()
-        print(f"[Register] Verification - User in DB: {check_user is not None}")
         logger.debug(f"[Register] Verification - User in DB: {check_user is not None}")
 
         return user
 
     except Exception as e:
-        print(f"[Register] Error during registration: {str(e)}")
         logger.error(f"[Register] Error during registration: {str(e)}")
         db.rollback()
         raise
@@ -100,13 +85,11 @@ def login(
 ) -> Any:
     """사용자 로그인 및 액세스 토큰 발급"""
     try:
-        print(f"[Login] Attempt for email: {login_data.email}")
         logger.debug(f"[Login] Attempt for email: {login_data.email}")
 
         # 사용자 조회
         user = db.query(User).filter(User.email == login_data.email).first()
         if not user:
-            print(f"[Login] User not found: {login_data.email}")
             logger.debug(f"[Login] User not found: {login_data.email}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -114,8 +97,6 @@ def login(
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
-        print(f"[Login] Found user: {user.email}")
-        print(f"[Login] Stored password hash: {user.password_hash}")
         logger.debug(f"[Login] Found user: {user.email}")
         logger.debug(f"[Login] Stored password hash: {user.password_hash}")
 
@@ -123,7 +104,6 @@ def login(
         from app.core.security import verify_password
 
         if not verify_password(login_data.password, str(user.password_hash)):
-            print("[Login] Password verification failed")
             logger.debug("[Login] Password verification failed")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -140,7 +120,6 @@ def login(
             subject=str(user.id), expires_delta=access_token_expires
         )
 
-        print("[Login] Login successful, token generated")
         logger.debug("[Login] Login successful, token generated")
 
         # UserResponse 변환을 위해 user 객체를 dict로 변환
@@ -160,7 +139,6 @@ def login(
         return {"access_token": access_token, "token_type": "bearer", "user": user_dict}
 
     except Exception as e:
-        print(f"[Login] Error during login: {str(e)}")
         logger.error(f"[Login] Error during login: {str(e)}")
         raise
 

@@ -2,9 +2,13 @@
 채팅 관련 엔드포인트
 """
 
+import logging
 from datetime import datetime
 from typing import List, Optional
 from uuid import UUID
+
+# 로거 설정
+logger = logging.getLogger(__name__)
 
 from app.api.deps import get_current_user, get_db
 from app.core.config import settings
@@ -175,6 +179,7 @@ async def get_chat_messages(
         # 채팅방 존재 및 권한 확인
         chat_room = ChatService.get_chat_room(db, room_id)
         if not chat_room:
+            logger.warning(f"Chat room not found: {room_id}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="채팅방을 찾을 수 없습니다.",
@@ -182,6 +187,7 @@ async def get_chat_messages(
 
         # 채팅방이 현재 사용자의 것인지 확인
         if str(chat_room.user_id) != str(current_user.id):
+            logger.warning(f"Unauthorized access to chat room {room_id} by user {current_user.id}")
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="이 채팅방에 접근할 권한이 없습니다.",
@@ -192,6 +198,7 @@ async def get_chat_messages(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error fetching chat messages: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"메시지 목록 조회 중 오류가 발생했습니다: {str(e)}",
@@ -396,10 +403,24 @@ async def websocket_endpoint(
                         room_id,
                     )
 
-                    # ML 서비스 호출
+                    # ML 서비스 호출 (이전 사용자 증상과 합쳐 추론)
                     try:
+                        # WebSocket 토큰을 Bearer로 전달
+                        bearer = f"Bearer {token}" if token else None
+
+                        # 이전 USER 메시지들과 현재 메시지를 결합하여 더 풍부한 증상 맥락 제공
+                        from app.core.config import settings
+                        history_msgs = ChatService.get_chat_messages(db, room_id, limit=100)
+                        user_texts = [m.content for m in history_msgs if getattr(m, 'message_type', '') == 'USER']
+                        # 최근 N개 사용자 문장만 사용
+                        n = int(getattr(settings, 'SYMPTOM_HISTORY_UTTERANCES', 5) or 5)
+                        combined_text = "\n".join(user_texts[-n:]) if user_texts else content
+
+                        # 전체 분석 엔드포인트에서 임계치/추천 여부를 일괄 판단
                         ml_result = await ml_client.get_full_analysis(
-                            text=content, user_id=str(user_id), chat_room_id=room_id
+                            text=combined_text,
+                            chat_room_id=room_id,
+                            authorization=bearer,
                         )
 
                         if ml_result:
@@ -408,7 +429,9 @@ async def websocket_endpoint(
                             from app.models.model_inference import ModelInferenceResult
 
                             # 증상 분석 결과 추출
-                            symptom_analysis = ml_result.get("symptom_analysis", {})
+                            symptom_analysis = ml_result.get(
+                                "symptom_analysis", ml_result
+                            )
                             disease_classifications = symptom_analysis.get(
                                 "disease_classifications", []
                             )
@@ -485,12 +508,16 @@ async def websocket_endpoint(
                                 )
                                 bot_content = symptom_msg + hospital_msg
                             else:
-                                bot_content = symptom_msg
+                                # 임계치 미만이면 추가 정보 요청 메시지 부가
+                                bot_content = (
+                                    symptom_msg
+                                    + "\n\n더 정확한 추천을 위해 증상을 조금만 더 자세히 알려주세요."
+                                )
                         else:
                             bot_content = "죄송합니다. 증상 분석 중 오류가 발생했습니다. 다시 시도해주세요."
 
                     except Exception as e:
-                        print(f"[WebSocket] ML 분석 중 오류: {str(e)}")
+                        logger.error(f"[WebSocket] ML 분석 중 오류: {str(e)}")
                         bot_content = "증상에 대해 더 자세히 알려주시면 보다 정확한 정보를 제공해드릴 수 있습니다."
 
                     # 봇 메시지 저장
@@ -538,21 +565,4 @@ async def websocket_endpoint(
         await websocket.close(code=1011, reason=f"Internal server error: {str(e)}")
 
 
-@router.get("/test")
-async def test_chat():
-    """채팅 API 테스트"""
-    return {
-        "message": "채팅 API가 정상적으로 작동합니다.",
-        "timestamp": datetime.now().isoformat(),
-        "version": "1.0.0",
-        "available_endpoints": [
-            "GET /api/chat/rooms - 채팅방 목록 조회",
-            "POST /api/chat/rooms - 새 채팅방 생성",
-            "GET /api/chat/rooms/{room_id}/messages - 채팅방 메시지 목록 조회",
-            "POST /api/chat/rooms/{room_id}/messages - 메시지 전송 및 봇 응답",
-            "DELETE /api/chat/rooms/{room_id} - 채팅방 삭제",
-            "WS /api/chat/ws/{room_id} - 실시간 WebSocket 채팅",
-        ],
-        "status": "websocket_integration_complete",
-        "active_connections": len(manager.active_connections),
-    }
+## 테스트 전용 엔드포인트 제거 (프로덕션 안정성)

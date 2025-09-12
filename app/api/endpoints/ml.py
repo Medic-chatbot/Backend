@@ -2,6 +2,7 @@
 ML 서비스 관련 엔드포인트
 """
 
+import logging
 from typing import Optional
 
 from app.api.deps import get_current_user, get_db
@@ -9,7 +10,11 @@ from app.models.user import User
 from app.services.ml_service import ml_client
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
+from fastapi import Header
 from sqlalchemy.orm import Session
+
+# 로거 설정
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -30,6 +35,8 @@ class SymptomAnalysisResponse(BaseModel):
     top_disease: str
     confidence: float
     formatted_message: str
+    user_id: str
+    chat_room_id: Optional[int] = None
 
 
 @router.post("/analyze-symptom", response_model=SymptomAnalysisResponse)
@@ -37,6 +44,7 @@ async def analyze_symptom(
     request: SymptomAnalysisRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    authorization: Optional[str] = Header(default=None),
 ):
     """
     증상 텍스트 분석 API 엔드포인트
@@ -45,8 +53,8 @@ async def analyze_symptom(
         # ML 서비스 호출
         ml_result = await ml_client.analyze_symptom(
             text=request.text,
-            user_id=str(current_user.id),
             chat_room_id=request.chat_room_id,
+            authorization=authorization,
         )
 
         if not ml_result:
@@ -67,6 +75,8 @@ async def analyze_symptom(
             top_disease=ml_result.get("top_disease", "알 수 없음"),
             confidence=ml_result.get("confidence", 0.0),
             formatted_message=formatted_message,
+            user_id=str(current_user.id),
+            chat_room_id=request.chat_room_id,
         )
 
     except HTTPException:
@@ -84,6 +94,7 @@ async def get_full_analysis(
     request: SymptomAnalysisRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    authorization: Optional[str] = Header(default=None),
 ):
     """
     전체 분석: 증상 분석 + 병원 추천
@@ -92,8 +103,8 @@ async def get_full_analysis(
         # ML 서비스 호출
         ml_result = await ml_client.get_full_analysis(
             text=request.text,
-            user_id=str(current_user.id),
             chat_room_id=request.chat_room_id,
+            authorization=authorization,
         )
 
         if not ml_result:
@@ -102,6 +113,11 @@ async def get_full_analysis(
                 detail="ML 서비스에 연결할 수 없습니다",
             )
 
+        # user_id를 최상위에 포함하여 반환 (프론트 요구사항 반영)
+        if isinstance(ml_result, dict):
+            ml_result["user_id"] = str(current_user.id)
+            if request.chat_room_id is not None:
+                ml_result["chat_room_id"] = request.chat_room_id
         return ml_result
 
     except HTTPException:

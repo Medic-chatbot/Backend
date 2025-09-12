@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     VERSION: str = "1.0.0"
     DEBUG: bool = True  # 모든 로그 출력
 
-    EC2_PUBLIC_IP: str = "localhost"  # 환경별 서버 호스트 (로컬 기본값)
+
 
     # 데이터베이스 설정 (환경변수에서 로딩, 기본값은 로컬 개발용)
     DB_HOST: str = "localhost"
@@ -39,7 +39,7 @@ class Settings(BaseSettings):
 
     # CORS 설정 (환경변수에서 로딩, 콤마로 구분)
     ALLOWED_HOSTS_STRING: str = (
-        "http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000,http://127.0.0.1:5173"
+        "http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000,http://127.0.0.1:5173,http://medic.yoon.today,https://medic.yoon.today"
     )
 
     @property
@@ -49,8 +49,24 @@ class Settings(BaseSettings):
         return [host.strip() for host in hosts if host.strip()]
 
     # 서비스 URL 설정 (환경변수에서 로딩)
-    ML_SERVICE_URL: str = "http://ml-service:8001"  # Docker Compose용 기본값
-    API_SERVICE_URL: str = "http://localhost:8000"
+    ML_SERVICE_URL: str = "http://ml-service:8001"  # Docker Compose 로컬용
+    API_SERVICE_URL: str = "http://localhost:8000"  # 로컬 개발용
+    ALB_HOST: str = "medic.yoon.today"  # 프로덕션 ALB 주소
+
+    # 추천 관련 공통 설정(로깅/분기 통일성)
+    RECOMMEND_CONFIDENCE_THRESHOLD: float = 0.8
+    RECOMMEND_LIMIT: int = 3
+    SYMPTOM_HISTORY_UTTERANCES: int = 5
+
+    @property
+    def ML_SERVICE_URL_ALB(self) -> str:
+        """ALB 경유 ML 서비스 URL (프로덕션용)"""
+        return f"http://{self.ALB_HOST}/ml"
+
+    @property
+    def API_SERVICE_URL_ALB(self) -> str:
+        """ALB 경유 API 서비스 URL (프로덕션용)"""
+        return f"http://{self.ALB_HOST}/api"
 
     # 카카오 API 설정
     KAKAO_REST_API_KEY: Optional[str] = None

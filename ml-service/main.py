@@ -11,8 +11,10 @@ from typing import Any, Dict, List, Optional
 
 import httpx
 import torch
-from fastapi import FastAPI, HTTPException
-from konlpy.tag import Hannanum, Kkma, Okt
+from fastapi import FastAPI, HTTPException, APIRouter
+from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi.openapi.docs import get_swagger_ui_html
+from konlpy.tag import Kkma
 from pydantic import BaseModel
 from transformers import AutoModelForSequenceClassification, AutoTokenizer, pipeline
 
@@ -20,7 +22,8 @@ from transformers import AutoModelForSequenceClassification, AutoTokenizer, pipe
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(
+# 내부 서비스 앱(실제 라우트가 등록되는 앱)
+ml_api = FastAPI(
     title="Medic AI Service",
     description="한국어 의료 증상 분석 및 질병 예측 서비스",
     version="2.0.0",
@@ -34,6 +37,9 @@ DEVICE = (
     else "cpu"
 )
 API_SERVICE_URL = os.getenv("API_SERVICE_URL", "http://localhost:8000")
+# 추천 트리거 임계치/기본 limit 환경변수
+RECOMMEND_CONFIDENCE_THRESHOLD = float(os.getenv("RECOMMEND_CONFIDENCE_THRESHOLD", "0.8"))
+DEFAULT_RECOMMEND_LIMIT = int(os.getenv("RECOMMEND_LIMIT", "3"))
 
 # 전역 변수로 모델과 분석기 저장
 tokenizer = None
@@ -43,24 +49,11 @@ morph_analyzer = None
 
 
 class KoreanStemExtractor:
-    """한국어 형태소 분석 및 어간 추출 클래스"""
+    """한국어 형태소 분석 (Kkma)"""
 
-    def __init__(self, analyzer="okt"):
-        """
-        형태소 분석기 초기화
-        analyzer: 'okt', 'kkma', 'hannanum' 중 선택
-        """
-        self.analyzer_name = analyzer.lower()
-        if self.analyzer_name == "okt":
-            self.analyzer = Okt()
-        elif self.analyzer_name == "kkma":
-            self.analyzer = Kkma()
-        elif self.analyzer_name == "hannanum":
-            self.analyzer = Hannanum()
-        else:
-            logger.warning("지원하지 않는 분석기입니다. Okt를 사용합니다.")
-            self.analyzer = Okt()
-            self.analyzer_name = "okt"
+    def __init__(self):
+        self.analyzer_name = "kkma"
+        self.analyzer = Kkma()
 
     def extract_stems(self, text, min_length=1, include_pos=False):
         """
@@ -70,26 +63,15 @@ class KoreanStemExtractor:
             return []
 
         try:
-            # 형태소 분석
-            morphs = self.analyzer.pos(text, norm=True, stem=True)
+            # 형태소 분석 (Kkma)
+            morphs = self.analyzer.pos(text)
 
             stems = []
             for word, pos in morphs:
-                # 동사(V), 형용사(A), 명사(N) 처리
-                if pos.startswith("V") or pos.startswith("A"):
-                    # 동사/형용사의 어간 추출
+                # Kkma 품사 태그 기준: N(명사), V(용언 포함), VA/VV(형용사/동사) 등
+                if pos.startswith("N") or pos.startswith("V") or pos.startswith("VA"):
                     if len(word) >= min_length:
-                        if include_pos:
-                            stems.append((word, pos))
-                        else:
-                            stems.append(word)
-                elif pos.startswith("N"):
-                    # 명사의 어근 추출
-                    if len(word) >= min_length:
-                        if include_pos:
-                            stems.append((word, pos))
-                        else:
-                            stems.append(word)
+                        stems.append((word, pos) if include_pos else word)
 
             return stems
 
@@ -123,12 +105,17 @@ class KoreanStemExtractor:
 
 # Pydantic 모델들
 class SymptomRequest(BaseModel):
-    """증상 분석 요청"""
+    """증상 분석 요청 (토큰 인증, 최소 필드)
+
+    - text: 필수 입력 텍스트
+    - chat_room_id: (선택) 병원 추천 연계를 위한 채팅방 ID
+    """
 
     text: str
-    user_id: Optional[str] = None
     chat_room_id: Optional[int] = None
-    max_length: int = 512
+    # 병원 추천 파라미터(옵션)
+    max_distance: Optional[float] = 5.0
+    limit: Optional[int] = 3
 
 
 class DiseaseClassification(BaseModel):
@@ -139,22 +126,19 @@ class DiseaseClassification(BaseModel):
 
 
 class SymptomResponse(BaseModel):
-    """증상 분석 응답"""
+    """증상 분석 응답 (최소 필드)"""
 
     original_text: str
     processed_text: str
     disease_classifications: List[DiseaseClassification]
     top_disease: str
     confidence: float
-    user_id: Optional[str] = None
-    chat_room_id: Optional[int] = None
 
 
 class HospitalRecommendationRequest(BaseModel):
-    """병원 추천 요청"""
+    """병원 추천 요청 (토큰 기반 사용자 식별)"""
 
     disease_name: str
-    user_id: str
     chat_room_id: int
     user_location: Optional[str] = None
 
@@ -169,7 +153,7 @@ class HealthResponse(BaseModel):
     analyzer: str
 
 
-@app.on_event("startup")
+@ml_api.on_event("startup")
 async def load_model():
     """애플리케이션 시작 시 모델 및 분석기 로드"""
     global tokenizer, model, pipeline_model, morph_analyzer
@@ -180,15 +164,16 @@ async def load_model():
 
         # 형태소 분석기 초기화
         logger.info("형태소 분석기 초기화...")
-        morph_analyzer = KoreanStemExtractor(analyzer="okt")
+        morph_analyzer = KoreanStemExtractor()
 
         # BERT 모델 로드 (Pipeline 방식)
         logger.info("BERT 모델 로딩...")
+        # Transformers deprecation 대응: return_all_scores → top_k=None 사용
         pipeline_model = pipeline(
             "text-classification",
             model=MODEL_NAME,
             device=0 if DEVICE == "cuda" else -1,
-            return_all_scores=True,
+            top_k=None,  # 모든 라벨 스코어 반환
         )
 
         # Direct 모델 로드 (백업용)
@@ -204,7 +189,9 @@ async def load_model():
         raise e
 
 
-@app.get("/health", response_model=HealthResponse)
+router = APIRouter()
+
+@router.get("/health", response_model=HealthResponse)
 async def health_check():
     """헬스체크 엔드포인트"""
     return HealthResponse(
@@ -216,7 +203,7 @@ async def health_check():
     )
 
 
-@app.post("/analyze", response_model=SymptomResponse)
+@router.post("/analyze", response_model=SymptomResponse)
 async def analyze_symptom(request: SymptomRequest):
     """
     증상 텍스트 분석 및 질병 예측
@@ -239,15 +226,26 @@ async def analyze_symptom(request: SymptomRequest):
             )
 
         # 2. BERT 모델 예측
-        predictions = pipeline_model(processed_text)
+        # 단일 입력에도 결과 shape를 일정하게 만들기 위해 리스트 입력으로 호출
+        predictions = pipeline_model([processed_text])
 
-        # 3. 결과 정리
-        disease_classifications = []
-        for pred_list in predictions:
-            for pred in pred_list:
-                disease_classifications.append(
-                    DiseaseClassification(label=pred["label"], score=pred["score"])
-                )
+        # 3. 결과 정리 (top_k=None 사용 시 [[{label,score}...]] 형태 기대)
+        disease_classifications: List[DiseaseClassification] = []
+        try:
+            pred_list = predictions[0] if isinstance(predictions, list) else predictions
+            # pred_list가 dict의 리스트라고 가정. 아니면 보수적으로 변환
+            if isinstance(pred_list, dict):
+                pred_iter = [pred_list]
+            else:
+                pred_iter = list(pred_list)
+
+            for pred in pred_iter:
+                if isinstance(pred, dict) and "label" in pred and "score" in pred:
+                    disease_classifications.append(
+                        DiseaseClassification(label=str(pred["label"]), score=float(pred["score"]))
+                    )
+        except Exception as _:
+            logger.warning("예측 결과 파싱 중 포맷 이슈 발생, 빈 결과로 처리")
 
         # 상위 질병 추출
         disease_classifications.sort(key=lambda x: x.score, reverse=True)
@@ -266,8 +264,6 @@ async def analyze_symptom(request: SymptomRequest):
             disease_classifications=disease_classifications,
             top_disease=top_disease,
             confidence=confidence,
-            user_id=request.user_id,
-            chat_room_id=request.chat_room_id,
         )
 
         logger.info(f"분석 완료 - 예측 질병: {top_disease} (신뢰도: {confidence:.4f})")
@@ -280,61 +276,71 @@ async def analyze_symptom(request: SymptomRequest):
         )
 
 
-@app.post("/recommend-hospitals")
-async def recommend_hospitals(request: HospitalRecommendationRequest):
-    """
-    질병명을 기반으로 병원 추천 요청
-    API 서비스의 병원 추천 엔드포인트 호출
-    """
+async def _call_recommend_hospitals(
+    disease_name: str,
+    chat_room_id: int,
+    authorization: Optional[str],
+    max_distance: Optional[float] = 5.0,
+    limit: Optional[int] = 3,
+):
+    """내부 헬퍼: API 라이트 병원 추천 호출"""
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
+            headers = {"Content-Type": "application/json"}
+            if authorization:
+                headers["Authorization"] = authorization
+            payload = {
+                "disease_name": disease_name,
+                "chat_room_id": chat_room_id,
+                "max_distance": max_distance or 5.0,
+                "limit": limit or 3,
+            }
             response = await client.post(
-                f"{API_SERVICE_URL}/api/medical/recommend-hospitals",
-                json={
-                    "symptoms": request.disease_name,
-                    "location": request.user_location or "서울",
-                    "chat_room_id": request.chat_room_id,
-                },
-                headers={"Content-Type": "application/json"},
+                f"{API_SERVICE_URL}/api/medical/recommend-by-disease",
+                json=payload,
+                headers=headers,
             )
-
             if response.status_code == 200:
                 return response.json()
-            else:
-                logger.error(f"병원 추천 API 오류: {response.status_code}")
-                raise HTTPException(
-                    status_code=response.status_code,
-                    detail="병원 추천 서비스에서 오류가 발생했습니다",
-                )
-
-    except httpx.RequestError as e:
-        logger.error(f"병원 추천 요청 실패: {str(e)}")
-        raise HTTPException(
-            status_code=503, detail="병원 추천 서비스에 연결할 수 없습니다"
-        )
+            logger.error(f"병원 추천 API 오류: {response.status_code}")
+            return None
+    except Exception as e:
+        logger.warning(f"병원 추천 호출 실패: {e}")
+        return None
 
 
-@app.post("/full-analysis")
-async def full_analysis(request: SymptomRequest):
+from fastapi import Header
+
+
+@router.post("/full-analysis")
+async def full_analysis(request: SymptomRequest, authorization: Optional[str] = Header(default=None)):
     """
-    완전한 분석: 증상 분석 + 병원 추천
+    완전한 분석: 증상 분석 + (임계치 기반) 병원 추천
+
+    - 증상 분석을 먼저 수행
+    - 최상위 질환 신뢰도(confidence)가 0.8 이상이고 chat_room_id가 있을 때만
+      병원 추천 API를 호출하여 결과를 포함
     """
     try:
         # 1. 증상 분석
         symptom_result = await analyze_symptom(request)
 
-        # 2. 병원 추천 (user_id가 있는 경우에만)
+        # 2. 임계치 기반 병원 추천
         hospital_result = None
-        if request.user_id and request.chat_room_id and symptom_result.top_disease:
-            hospital_request = HospitalRecommendationRequest(
-                disease_name=symptom_result.top_disease,
-                user_id=request.user_id,
-                chat_room_id=request.chat_room_id,
+        try:
+            confidence = getattr(symptom_result, "confidence", 0.0) or 0.0
+        except Exception:
+            confidence = 0.0
+
+        threshold = RECOMMEND_CONFIDENCE_THRESHOLD
+        if confidence >= threshold and request.chat_room_id and getattr(symptom_result, "top_disease", None) and authorization:
+            hospital_result = await _call_recommend_hospitals(
+                symptom_result.top_disease,
+                request.chat_room_id,
+                authorization,
+                request.max_distance,
+                request.limit if request.limit is not None else DEFAULT_RECOMMEND_LIMIT,
             )
-            try:
-                hospital_result = await recommend_hospitals(hospital_request)
-            except Exception as e:
-                logger.warning(f"병원 추천 실패: {str(e)}")
 
         return {
             "symptom_analysis": symptom_result,
@@ -346,24 +352,95 @@ async def full_analysis(request: SymptomRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/")
-async def root():
-    """루트 엔드포인트"""
-    return {
-        "service": "Medic AI Service",
-        "version": "2.0.0",
-        "status": "running",
-        "endpoints": {
-            "health": "/health",
-            "analyze": "/analyze",
-            "recommend-hospitals": "/recommend-hospitals",
-            "full-analysis": "/full-analysis",
-            "docs": "/docs",
-        },
-    }
+# 루트/디버그 라우트 제거: 노출 단순화
 
+
+# 앱 노출: 동일 엔드포인트를 / 와 /ml 모두에서 제공
+app = ml_api
+# 라우터 이중 등록: /, /ml
+app.include_router(router)
+app.include_router(router, prefix="/ml")
+
+# =====================
+# 개발자용 디버그 엔드포인트 (오직 /ml/* 에서만 노출)
+# =====================
+
+dev_router = APIRouter()
+
+
+class DevTextRequest(BaseModel):
+    text: str
+
+
+@dev_router.post("/morph-only")
+async def dev_morph_only(req: DevTextRequest):
+    """형태소 분석기 결과만 반환 (개발자용)"""
+    if morph_analyzer is None:
+        raise HTTPException(status_code=503, detail="형태소 분석기가 아직 로드되지 않았습니다")
+    try:
+        pos = morph_analyzer.analyzer.pos(req.text)
+        stems = morph_analyzer.extract_stems(req.text, min_length=1, include_pos=False)
+        processed = morph_analyzer.extract_morphs_for_model(req.text)
+        return {
+            "original_text": req.text,
+            "pos": pos,
+            "stems": stems,
+            "processed_text": processed,
+        }
+    except Exception as e:
+        logger.error(f"morph-only 오류: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@dev_router.post("/analyze-with-morph")
+async def dev_analyze_with_morph(req: DevTextRequest):
+    """형태소 분석 + 모델 예측 결과 반환 (개발자용)"""
+    if pipeline_model is None or morph_analyzer is None:
+        raise HTTPException(status_code=503, detail="모델 또는 분석기가 아직 로드되지 않았습니다")
+    try:
+        pos = morph_analyzer.analyzer.pos(req.text)
+        processed = morph_analyzer.extract_morphs_for_model(req.text)
+        preds = pipeline_model([processed])
+        rows = []
+        try:
+            pred_list = preds[0] if isinstance(preds, list) else preds
+            if isinstance(pred_list, dict):
+                pred_iter = [pred_list]
+            else:
+                pred_iter = list(pred_list)
+            for p in pred_iter:
+                if isinstance(p, dict) and "label" in p and "score" in p:
+                    rows.append({"label": str(p["label"]), "score": float(p["score"])})
+        except Exception as _:
+            rows = []
+        rows.sort(key=lambda x: x["score"], reverse=True)
+        return {
+            "original_text": req.text,
+            "processed_text": processed,
+            "pos": pos,
+            "disease_classifications": rows,
+            "top_disease": rows[0]["label"] if rows else "알 수 없음",
+            "confidence": rows[0]["score"] if rows else 0.0,
+        }
+    except Exception as e:
+        logger.error(f"analyze-with-morph 오류: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# 개발자용 라우터는 /ml 하위에만 노출
+app.include_router(dev_router, prefix="/ml/dev")
+
+# Docs under /ml as well
+@app.get("/ml/openapi.json", include_in_schema=False)
+async def ml_openapi():
+    return JSONResponse(app.openapi())
+
+@app.get("/ml/docs", response_class=HTMLResponse, include_in_schema=False)
+async def ml_docs():
+    return get_swagger_ui_html(
+        openapi_url="/ml/openapi.json",
+        title="Medic AI Service (ML) - Docs",
+    )
 
 if __name__ == "__main__":
     import uvicorn
-
     uvicorn.run(app, host="0.0.0.0", port=8001)

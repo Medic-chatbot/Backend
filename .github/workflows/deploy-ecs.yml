@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [3.12]
+        python-version: [3.9]
 
     steps:
     - name: Checkout code
@@ -85,11 +85,7 @@ jobs:
         docker build -f ml-service/Dockerfile -t $ECR_REGISTRY/medic-ml-service:${{ steps.env.outputs.image_tag }} .
         docker push $ECR_REGISTRY/medic-ml-service:${{ steps.env.outputs.image_tag }}
 
-    # Nginx 빌드 & 푸시
-    - name: Build and push Nginx
-      run: |
-        docker build -f nginx.Dockerfile -t $ECR_REGISTRY/medic-nginx:${{ steps.env.outputs.image_tag }} .
-        docker push $ECR_REGISTRY/medic-nginx:${{ steps.env.outputs.image_tag }}
+    # Nginx 제거됨 - ALB에서 직접 라우팅
 
     # 태스크 정의 업데이트 및 등록
     - name: Deploy ECS Task Definitions
@@ -97,41 +93,87 @@ jobs:
         AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
         ECR_API_SERVICE: ${{ env.ECR_REGISTRY }}/medic-api-service
         ECR_ML_SERVICE: ${{ env.ECR_REGISTRY }}/medic-ml-service
-        ECR_NGINX: ${{ env.ECR_REGISTRY }}/medic-nginx
+        IMAGE_TAG: ${{ steps.env.outputs.image_tag }}
         DB_HOST: ${{ secrets.DB_HOST }}
+        DB_PORT: ${{ secrets.DB_PORT }}
+        DB_NAME: ${{ secrets.DB_NAME }}
+        DB_USER: ${{ secrets.DB_USER }}
         DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+        ML_SERVICE_URL: ${{ secrets.ML_SERVICE_URL }}
         SECRET_KEY: ${{ secrets.SECRET_KEY }}
         ACCESS_TOKEN_EXPIRE_MINUTES: ${{ secrets.ACCESS_TOKEN_EXPIRE_MINUTES }}
-        ML_SERVICE_URL: ${{ secrets.ML_SERVICE_URL }}
-        API_SERVICE_URL: ${{ secrets.API_SERVICE_URL }}
-        API_SERVICE_HOST: ${{ secrets.API_SERVICE_HOST }}
-        ML_SERVICE_HOST: ${{ secrets.ML_SERVICE_HOST }}
-        EC2_PUBLIC_IP: ${{ secrets.EC2_PUBLIC_IP }}
+        ALB_HOST: ${{ secrets.ALB_HOST }}
         ALLOWED_HOSTS_STRING: ${{ secrets.ALLOWED_HOSTS_STRING }}
         KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
         DEBUG: ${{ secrets.DEBUG }}
+        RECOMMEND_CONFIDENCE_THRESHOLD: ${{ secrets.RECOMMEND_CONFIDENCE_THRESHOLD }}
+        RECOMMEND_LIMIT: ${{ secrets.RECOMMEND_LIMIT }}
       run: |
         chmod +x scripts/deploy-ecs-tasks.sh
         ./scripts/deploy-ecs-tasks.sh
 
-    # ECS 서비스 업데이트 (프로덕션만)
-    - name: Update ECS Services
+    # ECS 서비스 생성/업데이트 (프로덕션만)
+    - name: Create or Update ECS Services
       if: steps.env.outputs.environment == 'prod'
       run: |
-        # API 서비스 업데이트
-        aws ecs update-service --cluster medic-cluster \
-                              --service medic-api-service \
-                              --force-new-deployment
-        
-        # ML 서비스 업데이트
-        aws ecs update-service --cluster medic-cluster \
-                              --service medic-ml-service \
-                              --force-new-deployment
-        
-        # Nginx 서비스 업데이트
-        aws ecs update-service --cluster medic-cluster \
-                              --service medic-nginx-service \
-                              --force-new-deployment
+        # 최신 태스크 정의 ARN 조회 (텍스트 출력의 'None' 토큰 제거)
+        API_TD=$(aws ecs list-task-definitions \
+          --family-prefix medic-api-service \
+          --region ${{ env.AWS_REGION }} \
+          --sort DESC \
+          --no-paginate \
+          --query 'taskDefinitionArns[0]' \
+          --output text | awk '{print $1}')
+        ML_TD=$(aws ecs list-task-definitions \
+          --family-prefix medic-ml-service \
+          --region ${{ env.AWS_REGION }} \
+          --sort DESC \
+          --no-paginate \
+          --query 'taskDefinitionArns[0]' \
+          --output text | awk '{print $1}')
+        echo "Using task definitions:\nAPI=$API_TD\nML=$ML_TD"
+
+        # API 서비스 생성 또는 업데이트
+        if aws ecs describe-services --cluster medic-gpu-cluster --services medic-api-service --region ${{ env.AWS_REGION }} --query 'services[0].status' --output text 2>/dev/null | grep -q ACTIVE; then
+          echo "API 서비스 업데이트 중..."
+          aws ecs update-service --cluster medic-gpu-cluster \
+                                --service medic-api-service \
+                                --task-definition "$API_TD" \
+                                --force-new-deployment \
+                                --region ${{ env.AWS_REGION }}
+        else
+          echo "API 서비스 생성 중..."
+          aws ecs create-service --cluster medic-gpu-cluster \
+                                --service-name medic-api-service \
+                                --task-definition "$API_TD" \
+                                --desired-count 1 \
+                                --launch-type FARGATE \
+                                --network-configuration "awsvpcConfiguration={subnets=[subnet-0af516b746f51bf50],securityGroups=[sg-02d21d7d277ed217d]}" \
+                                --load-balancers targetGroupArn=arn:aws:elasticloadbalancing:ap-northeast-2:832362089079:targetgroup/medic-gpu-cluster-api-tg-ip/f1a73846ea163a99,containerName=medic-api-container,containerPort=8000 \
+                                --region ${{ env.AWS_REGION }}
+        fi
+
+        # ML 서비스 생성 또는 업데이트
+        if aws ecs describe-services --cluster medic-gpu-cluster --services medic-ml-service --region ${{ env.AWS_REGION }} --query 'services[0].status' --output text 2>/dev/null | grep -q ACTIVE; then
+          echo "ML 서비스 업데이트 중..."
+          aws ecs update-service --cluster medic-gpu-cluster \
+                                --service medic-ml-service \
+                                --task-definition "$ML_TD" \
+                                --force-new-deployment \
+                                --region ${{ env.AWS_REGION }}
+        else
+          echo "ML 서비스 생성 중..."
+          aws ecs create-service --cluster medic-gpu-cluster \
+                                --service-name medic-ml-service \
+                                --task-definition "$ML_TD" \
+                                --desired-count 1 \
+                                --launch-type EC2 \
+                                --load-balancers targetGroupArn=arn:aws:elasticloadbalancing:ap-northeast-2:832362089079:targetgroup/medic-gpu-cluster-ml-tg/3c61d34b09a1419a,containerName=medic-ml-container,containerPort=8001 \
+                                --placement-strategy type=spread,field=instanceId \
+                                --region ${{ env.AWS_REGION }}
+        fi
+
+        # Nginx 서비스 제거됨 - ALB에서 직접 라우팅
 
     # 배포 알림
     - name: Deployment notification

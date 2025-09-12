@@ -67,6 +67,8 @@ docker-compose.override.yml
 docs/
 *.md
 
+ecs-cloudformation-gpu.yaml
+
 # Docker
 .docker/
 Dockerfile*

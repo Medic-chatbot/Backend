@@ -1,19 +1,21 @@
 {
   "family": "medic-ml-service",
   "networkMode": "bridge",
-  "requiresCompatibilities": ["EC2"],
+  "requiresCompatibilities": [
+    "EC2"
+  ],
   "cpu": "3584",
-  "memory": "12288",
-  "executionRoleArn": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/ecsTaskExecutionRole",
-  "taskRoleArn": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/ecsTaskRole",
+  "memory": "14336",
+  "executionRoleArn": "arn:aws:iam::832362089079:role/medic-gpu-cluster-task-execution-role",
+  "taskRoleArn": "arn:aws:iam::832362089079:role/medic-gpu-cluster-task-role",
   "containerDefinitions": [
     {
       "name": "medic-ml-container",
-      "image": "${ECR_ML_SERVICE}:latest",
+      "image": "${ECR_ML_SERVICE}:${IMAGE_TAG}",
       "portMappings": [
         {
           "containerPort": 8001,
-          "hostPort": 0,
+          "hostPort": 8001,
           "protocol": "tcp"
         }
       ],
@@ -28,6 +30,7 @@
           "awslogs-stream-prefix": "ecs"
         }
       },
+      
       "environment": [
         {
           "name": "MODEL_NAME",
@@ -39,7 +42,7 @@
         },
         {
           "name": "API_SERVICE_URL",
-          "value": "${API_SERVICE_URL}"
+          "value": "http://${ALB_HOST}"
         },
         {
           "name": "PYTORCH_CUDA_ALLOC_CONF",
@@ -56,6 +59,14 @@
         {
           "name": "KONLPY_DATA_PATH",
           "value": "/app/konlpy_data"
+        },
+        {
+          "name": "RECOMMEND_CONFIDENCE_THRESHOLD",
+          "value": "${RECOMMEND_CONFIDENCE_THRESHOLD}"
+        },
+        {
+          "name": "RECOMMEND_LIMIT",
+          "value": "${RECOMMEND_LIMIT}"
         }
       ],
       "resourceRequirements": [
@@ -69,10 +80,5 @@
     }
   ],
   "volumes": [],
-  "placementConstraints": [
-    {
-      "type": "memberOf",
-      "expression": "attribute:environment == dev"
-    }
-  ]
+  "placementConstraints": []
 }

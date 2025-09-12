@@ -1,5 +1,5 @@
 # BERT 모델 서비스용 Dockerfile
-FROM pytorch/pytorch:2.0.1-cuda11.7-cudnn8-runtime
+FROM pytorch/pytorch:2.1.2-cuda11.8-cudnn8-runtime
 
 WORKDIR /app
 
@@ -19,6 +19,7 @@ ENV PATH=$JAVA_HOME/bin:$PATH
 COPY ml-service/requirements-ml.txt .
 # JPype을 먼저 설치 (Java와 연동)
 RUN pip install --no-cache-dir jpype1
+# PyTorch가 이미 베이스 이미지에 설치되어 있으므로 requirements만 설치
 RUN pip install --no-cache-dir -r requirements-ml.txt
 
 # 애플리케이션 코드 복사

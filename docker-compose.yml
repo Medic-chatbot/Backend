@@ -1,18 +1,5 @@
+# 로컬 개발용 Docker Compose (CPU 버전, RDS 사용)
 services:
-  nginx:
-    build:
-      context: .
-      dockerfile: nginx.Dockerfile
-    ports:
-      - "80:80"
-    environment:
-      - API_SERVICE_HOST=api
-      - ML_SERVICE_HOST=ml-service
-    depends_on:
-      - api
-      - ml-service
-    networks:
-      - medic-network
 
   api:
     build:
@@ -40,7 +27,7 @@ services:
       - "8001:8001"
     environment:
       - MODEL_NAME=unu-dev/krbert_ms2d_v1
-      - DEVICE=cpu  # 로컬 테스트용 (GPU 없는 환경)
+      - DEVICE=cpu  # 로컬 개발용 CPU 모드
       - API_SERVICE_URL=http://api:8000
     volumes:
       # 모델 캐시 공유

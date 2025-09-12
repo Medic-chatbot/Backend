@@ -18,13 +18,13 @@ check_env_vars() {
         "ECR_REGISTRY"
         "ECR_API_SERVICE"
         "ECR_ML_SERVICE"
-        "ECR_NGINX"
         "DB_HOST"
         "DB_PASSWORD"
         "SECRET_KEY"
         "DEBUG"
         "ALLOWED_HOSTS_STRING"
         "KAKAO_REST_API_KEY"
+        "ALB_HOST"
     )
     
     for var in "${required_vars[@]}"; do
@@ -34,6 +34,14 @@ check_env_vars() {
         fi
     done
     
+    # IMAGE_TAG은 선택적이나, 없으면 latest로 기본값 설정
+    if [[ -z "${IMAGE_TAG:-}" ]]; then
+        IMAGE_TAG="latest"
+        echo -e "${YELLOW}ℹ️  IMAGE_TAG가 비어 있어 'latest'로 기본값 적용${NC}"
+    else
+        echo -e "${GREEN}✅ IMAGE_TAG=${IMAGE_TAG}${NC}"
+    fi
+
     echo -e "${GREEN}✅ 모든 필수 환경변수가 설정되었습니다${NC}"
 }
 
@@ -73,8 +81,7 @@ main() {
     
     # 태스크 정의들 배포
     deploy_task_definition "ecs-task-definitions/api-service-cpu.json" "medic-api-service"
-    deploy_task_definition "ecs-task-definitions/ml-service-gpu.json" "medic-ml-service" 
-    deploy_task_definition "ecs-task-definitions/nginx-service-fargate.json" "medic-nginx-service"
+    deploy_task_definition "ecs-task-definitions/ml-service-gpu.json" "medic-ml-service"
     
     echo -e "${GREEN}🎉 모든 태스크 정의 배포 완료!${NC}"
 }
