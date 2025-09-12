@@ -301,7 +301,7 @@ async def full_analysis(request: SymptomRequest, authorization: Optional[str] = 
 
     - 증상 분석을 먼저 수행
     - 최상위 질환 신뢰도(confidence)가 0.8 이상이고 chat_room_id가 있을 때만
-      병원 추천 API를 호출하여 결과를 포함
+    - 병원 추천 API를 호출하여 결과를 포함
     """
     try:
         # 1. 증상 분석
