@@ -462,6 +462,19 @@ class HospitalRecommendationService:
         if not dept_id_list:
             return 0
 
+        total = (
+            db.query(func.coalesce(func.sum(HospitalDepartment.specialist_count), 0))
+            .filter(
+                HospitalDepartment.hospital_id == hospital_id,
+                HospitalDepartment.department_id.in_(dept_id_list),
+            )
+            .scalar()
+        )
+        try:
+            return int(total or 0)
+        except Exception:
+            return 0
+
     @staticmethod
     def get_equipment_details_for_hospital(
         db: Session, hospital_id: int, required_equipment_names: List[str]
@@ -496,15 +509,3 @@ class HospitalRecommendationService:
             }
             for (name, code, qty) in rows
         ]
-        total = (
-            db.query(func.coalesce(func.sum(HospitalDepartment.specialist_count), 0))
-            .filter(
-                HospitalDepartment.hospital_id == hospital_id,
-                HospitalDepartment.department_id.in_(dept_id_list),
-            )
-            .scalar()
-        )
-        try:
-            return int(total or 0)
-        except Exception:
-            return 0

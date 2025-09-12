@@ -108,6 +108,7 @@ jobs:
         DEBUG: ${{ secrets.DEBUG }}
         RECOMMEND_CONFIDENCE_THRESHOLD: ${{ secrets.RECOMMEND_CONFIDENCE_THRESHOLD }}
         RECOMMEND_LIMIT: ${{ secrets.RECOMMEND_LIMIT }}
+        SYMPTOM_HISTORY_UTTERANCES: ${{ secrets.SYMPTOM_HISTORY_UTTERANCES }}
       run: |
         chmod +x scripts/deploy-ecs-tasks.sh
         ./scripts/deploy-ecs-tasks.sh
