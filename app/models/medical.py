@@ -44,5 +44,8 @@ class Disease(Base):
         back_populates="third_disease",
     )
     equipment_diseases = relationship("EquipmentDisease", back_populates="disease")
+    equipment_diseases_categories = relationship(
+        "DiseaseEquipmentCategory", back_populates="disease"
+    )
     department_diseases = relationship("DepartmentDisease", back_populates="disease")
     chat_rooms = relationship("ChatRoom", back_populates="final_disease")

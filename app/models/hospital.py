@@ -22,6 +22,21 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
 
+class HospitalType(Base):
+    """병원 종별 코드/명 테이블 (요양기호명/코드 아님)"""
+
+    __tablename__ = "hospital_types"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    code = Column(String, unique=True, nullable=False)  # 종별코드 (예: 31, 21)
+    name = Column(String, nullable=False)  # 종별코드명 (예: 의원, 병원, 종합병원, 상급종합병원)
+
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )
+    deleted_at = Column(DateTime, nullable=True)
+
 class Hospital(Base):
     """병원 정보"""
 
@@ -45,6 +60,37 @@ class Hospital(Base):
     postal_code = Column(String, nullable=True)  # 우편번호
     phone = Column(String, nullable=True)
     website = Column(String, nullable=True)
+
+    # 시드 데이터 추가 필드들
+    opening_date = Column(Date, nullable=True)  # 개설일자
+    total_doctors = Column(Integer, nullable=True)  # 총의사수
+    dong_name = Column(String, nullable=True)  # 읍면동
+
+    # 주차 정보
+    parking_slots = Column(Integer, nullable=True)  # 주차_가능대수
+    parking_fee_required = Column(String, nullable=True)  # 주차_비용 부담여부 (Y/N)
+    parking_notes = Column(Text, nullable=True)  # 주차_기타 안내사항
+
+    # 휴진 안내
+    closed_sunday = Column(String, nullable=True)  # 휴진안내_일요일
+    closed_holiday = Column(String, nullable=True)  # 휴진안내_공휴일
+
+    # 응급실 운영
+    emergency_day_available = Column(String, nullable=True)  # 응급실_주간_운영여부
+    emergency_day_phone1 = Column(String, nullable=True)  # 응급실_주간_전화번호1
+    emergency_day_phone2 = Column(String, nullable=True)  # 응급실_주간_전화번호2
+    emergency_night_available = Column(String, nullable=True)  # 응급실_야간_운영여부
+    emergency_night_phone1 = Column(String, nullable=True)  # 응급실_야간_전화번호1
+    emergency_night_phone2 = Column(String, nullable=True)  # 응급실_야간_전화번호2
+
+    # 점심시간 및 접수시간
+    lunch_time_weekday = Column(String, nullable=True)  # 점심시간_평일
+    lunch_time_saturday = Column(String, nullable=True)  # 점심시간_토요일
+    reception_time_weekday = Column(String, nullable=True)  # 접수시간_평일
+    reception_time_saturday = Column(String, nullable=True)  # 접수시간_토요일
+
+    # 진료시간 (요일별)
+    treatment_hours = Column(JSON, nullable=True)  # 진료시간 전체를 JSON으로 저장
 
     # 타임스탬프
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
@@ -70,17 +116,16 @@ class HospitalEquipment(Base):
         ForeignKey("hospitals.id", ondelete="CASCADE"),
         nullable=False,
     )
-    equipment_subcategory_id = Column(
+    # 새로운 대분류 기반 필드들 (올바른 구조)
+    hospital_name = Column(String, nullable=True)  # 병원명 (조회 편의성)
+    equipment_category_id = Column(
         Integer,
-        ForeignKey("medical_equipment_subcategories.id", ondelete="CASCADE"),
+        ForeignKey("medical_equipment_categories.id", ondelete="CASCADE"),
         nullable=False,
     )
-    # 실제 데이터 기반 필드들
-    model_name = Column(String, nullable=True)  # 모델명 (예: HeartOn A15-G4)
-    license_number = Column(String, nullable=True)  # 장비허가번호 (예: 제허14-1593호)
+    equipment_category_name = Column(String, nullable=True)  # 장비 대분류명
+    equipment_category_code = Column(String, nullable=True)  # 장비 대분류코드
     quantity = Column(Integer, default=1, nullable=False)  # 장비수
-    installation_date = Column(Date, nullable=True)
-    is_operational = Column(Boolean, default=True)
 
     # 타임스탬프
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
@@ -89,10 +134,10 @@ class HospitalEquipment(Base):
     )
     deleted_at = Column(DateTime, nullable=True)
 
-    # 관계 설정
+    # 관계 설정 (올바른 구조)
     hospital = relationship("Hospital", back_populates="equipment")
-    equipment_subcategory = relationship(
-        "MedicalEquipmentSubcategory", back_populates="hospital_equipment"
+    equipment_category = relationship(
+        "MedicalEquipmentCategory", back_populates="hospital_equipment"
     )
 
 

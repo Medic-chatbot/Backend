@@ -53,6 +53,11 @@ class Settings(BaseSettings):
     API_SERVICE_URL: str = "http://localhost:8000"  # 로컬 개발용
     ALB_HOST: str = "medic.yoon.today"  # 프로덕션 ALB 주소
 
+    # 추천 관련 공통 설정(로깅/분기 통일성)
+    RECOMMEND_CONFIDENCE_THRESHOLD: float = 0.8
+    RECOMMEND_LIMIT: int = 3
+    SYMPTOM_HISTORY_UTTERANCES: int = 5
+
     @property
     def ML_SERVICE_URL_ALB(self) -> str:
         """ALB 경유 ML 서비스 URL (프로덕션용)"""
