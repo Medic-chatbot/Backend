@@ -130,9 +130,9 @@ class MLServiceClient:
 
         # 신뢰도에 따른 메시지 조정
         confidence_msg = ""
-        if confidence >= 0.8:
+        if confidence >= 0.9:
             confidence_msg = "높은 확률로"
-        elif confidence >= 0.6:
+        elif confidence >= 0.77:
             confidence_msg = "어느 정도 확률로"
         elif confidence >= 0.4:
             confidence_msg = "가능성이 있는"
@@ -153,26 +153,54 @@ class MLServiceClient:
         return message
 
     def format_hospital_results(self, hospital_result: Dict) -> str:
-        """
-        병원 추천 결과를 사용자 친화적인 메시지로 변환
-        """
+        """병원 추천 결과를 사용자 친화적인 메시지로 변환(반경/장비 상세 포함)."""
         if not hospital_result:
             return ""
 
-        message = "\n\n🏥 **추천 병원 정보**\n"
+        # 반경 정보
+        radius = None
+        try:
+            radius = hospital_result.get("search_criteria", {}).get("max_distance")
+        except Exception:
+            radius = None
 
-        # 병원 목록이 있는 경우
-        hospitals = hospital_result.get("hospitals", [])
-        if hospitals:
-            for i, hospital in enumerate(hospitals[:3], 1):  # 상위 3개만
-                name = hospital.get("name", "병원명 불명")
-                address = hospital.get("address", "주소 정보 없음")
-                phone = hospital.get("phone", "전화번호 정보 없음")
+        header = "\n\n🏥 **추천 병원 정보**"
+        if radius:
+            try:
+                header += f" (반경 {float(radius):.0f}km 내)"
+            except Exception:
+                pass
+        header += "\n"
+        message = header
 
-                message += f"\n{i}. **{name}**\n"
-                message += f"   📍 {address}\n"
-                if phone != "전화번호 정보 없음":
+        # 백엔드 응답 호환: recommendations(라이트) 우선, 없으면 hospitals 키 사용
+        items = hospital_result.get("recommendations") or hospital_result.get("hospitals") or []
+        if items:
+            # 필수 장비 목록(있을 때만 표출)
+            req_equips = hospital_result.get("required_equipment") or []
+            if req_equips:
+                message += "필수 장비: " + ", ".join(req_equips) + "\n"
+
+            for i, h in enumerate(items[:3], 1):  # 상위 3개만
+                name = h.get("name") or h.get("hospital", {}).get("name") or "병원명 불명"
+                address = h.get("address") or h.get("hospital", {}).get("address") or "주소 정보 없음"
+                phone = h.get("phone") or h.get("hospital", {}).get("phone") or "전화번호 정보 없음"
+
+                message += f"\n{i}. **{name}**\n   📍 {address}\n"
+                if phone and phone != "전화번호 정보 없음":
                     message += f"   📞 {phone}\n"
+                # 병원별 장비 상세(있을 때만)
+                if req_equips:
+                    details = h.get("equipment_details") or []
+                    if details:
+                        parts = []
+                        for d in details:
+                            n = d.get("name")
+                            q = d.get("quantity")
+                            if n and q is not None:
+                                parts.append(f"{n} x {q}")
+                        if parts:
+                            message += f"   🔧 장비: " + ", ".join(parts) + "\n"
         else:
             message += "해당 질병에 대한 병원 정보를 찾을 수 없습니다."
 

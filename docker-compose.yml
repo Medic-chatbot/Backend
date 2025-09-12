@@ -1,4 +1,4 @@
-# Nginx 제거 - ALB에서 직접 처리
+# 로컬 개발용 Docker Compose (CPU 버전, RDS 사용)
 services:
 
   api:
@@ -27,9 +27,8 @@ services:
       - "8001:8001"
     environment:
       - MODEL_NAME=unu-dev/krbert_ms2d_v1
-      - DEVICE=cuda  
+      - DEVICE=cpu  # 로컬 개발용 CPU 모드
       - API_SERVICE_URL=http://api:8000
-      - PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:512
     volumes:
       # 모델 캐시 공유
       - ml-model-cache:/app/model_cache

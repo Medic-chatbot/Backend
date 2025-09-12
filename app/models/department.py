@@ -79,6 +79,9 @@ class HospitalDepartment(Base):
         nullable=False,
     )
 
+    # 과목별 전문의 수 (선택적)
+    specialist_count = Column(Integer, nullable=True)
+
     # 타임스탬프
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(

@@ -35,6 +35,14 @@
           "value": "${DB_HOST}"
         },
         {
+          "name": "RECOMMEND_CONFIDENCE_THRESHOLD",
+          "value": "${RECOMMEND_CONFIDENCE_THRESHOLD}"
+        },
+        {
+          "name": "RECOMMEND_LIMIT",
+          "value": "${RECOMMEND_LIMIT}"
+        },
+        {
           "name": "DB_PORT",
           "value": "${DB_PORT}"
         },

@@ -24,7 +24,7 @@ wheels/
 venv/
 env/
 ENV/
-.env
+#.env
 .venv
 env.bak/
 venv.bak/
@@ -83,7 +83,7 @@ dist/
 build/
 
 # Large data files
-docs/
+#docs/
 *.json.gz
 
 .gitmessage.txt
@@ -104,4 +104,4 @@ scripts/tmp/
 scripts/migrate-simple.sh
 scripts/migrate.sh
 
-tools/
+#tools/
