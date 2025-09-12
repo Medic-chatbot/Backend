@@ -403,40 +403,25 @@ async def websocket_endpoint(
                         room_id,
                     )
 
-                    # ML 서비스 호출
+                    # ML 서비스 호출 (이전 사용자 증상과 합쳐 추론)
                     try:
-                        # 1단계: 증상 분석 먼저 수행 (트래픽 감소 및 임계치 분기)
-                        # WebSocket 쿼리 파라미터의 토큰을 Bearer로 전달
+                        # WebSocket 토큰을 Bearer로 전달
                         bearer = f"Bearer {token}" if token else None
-                        analysis_result = await ml_client.analyze_symptom(
-                            text=content,
+
+                        # 이전 USER 메시지들과 현재 메시지를 결합하여 더 풍부한 증상 맥락 제공
+                        from app.core.config import settings
+                        history_msgs = ChatService.get_chat_messages(db, room_id, limit=100)
+                        user_texts = [m.content for m in history_msgs if getattr(m, 'message_type', '') == 'USER']
+                        # 최근 N개 사용자 문장만 사용
+                        n = int(getattr(settings, 'SYMPTOM_HISTORY_UTTERANCES', 5) or 5)
+                        combined_text = "\n".join(user_texts[-n:]) if user_texts else content
+
+                        # 전체 분석 엔드포인트에서 임계치/추천 여부를 일괄 판단
+                        ml_result = await ml_client.get_full_analysis(
+                            text=combined_text,
                             chat_room_id=room_id,
                             authorization=bearer,
                         )
-
-                        ml_result = None
-                        if analysis_result:
-                            # 상위 스코어 확인 후 0.8 이상일 때만 병원 추천 포함한 전체 분석 수행
-                            top_score = 0.0
-                            disease_classifications = analysis_result.get(
-                                "disease_classifications", []
-                            )
-                            if disease_classifications:
-                                top_score = (
-                                    disease_classifications[0].get("score", 0.0)
-                                    if isinstance(disease_classifications[0], dict)
-                                    else disease_classifications[0].score
-                                )
-
-                            if top_score >= 0.8:
-                                ml_result = await ml_client.get_full_analysis(
-                                    text=content,
-                                    chat_room_id=room_id,
-                                    authorization=bearer,
-                                )
-                            else:
-                                # 임계치 미만일 경우 전체 분석은 생략하고 분석 결과만 전달
-                                ml_result = analysis_result
 
                         if ml_result:
                             # ML 결과 DB 저장
@@ -580,21 +565,4 @@ async def websocket_endpoint(
         await websocket.close(code=1011, reason=f"Internal server error: {str(e)}")
 
 
-@router.get("/test")
-async def test_chat():
-    """채팅 API 테스트"""
-    return {
-        "message": "채팅 API가 정상적으로 작동합니다.",
-        "timestamp": datetime.now().isoformat(),
-        "version": "1.0.0",
-        "available_endpoints": [
-            "GET /api/chat/rooms - 채팅방 목록 조회",
-            "POST /api/chat/rooms - 새 채팅방 생성",
-            "GET /api/chat/rooms/{room_id}/messages - 채팅방 메시지 목록 조회",
-            "POST /api/chat/rooms/{room_id}/messages - 메시지 전송 및 봇 응답",
-            "DELETE /api/chat/rooms/{room_id} - 채팅방 삭제",
-            "WS /api/chat/ws/{room_id} - 실시간 WebSocket 채팅",
-        ],
-        "status": "websocket_integration_complete",
-        "active_connections": len(manager.active_connections),
-    }
+## 테스트 전용 엔드포인트 제거 (프로덕션 안정성)

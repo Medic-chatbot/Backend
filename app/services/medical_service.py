@@ -15,6 +15,7 @@ from app.models.hospital import Hospital, HospitalEquipment
 from app.models.medical import Disease
 from app.models.model_inference import ModelInferenceResult
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import func
 
 logger = logging.getLogger(__name__)
 
@@ -134,8 +135,14 @@ class MedicalService:
         # 관련 질환들 조회
         diseases = MedicalService.get_diseases_by_department(db, int(department.id))
 
-        # 관련 병원들 조회
-        hospitals = MedicalService.get_hospitals_by_department(db, int(department.id))
+        # 관련 병원들 조회(+ specialist_count)
+        from app.models.department import HospitalDepartment as HD
+        hospital_rows = (
+            db.query(Hospital, HD.specialist_count)
+            .join(HD, HD.hospital_id == Hospital.id)
+            .filter(HD.department_id == department.id)
+            .all()
+        )
 
         # Dict로 변환
         disease_dicts = [
@@ -150,14 +157,15 @@ class MedicalService:
 
         hospital_dicts = [
             {
-                "id": hospital.id,
-                "name": hospital.name,
-                "address": hospital.address,
-                "hospital_type_name": hospital.hospital_type_name,
-                "phone": hospital.phone,
-                "created_at": hospital.created_at,
+                "id": h.id,
+                "name": h.name,
+                "address": h.address,
+                "hospital_type_name": h.hospital_type_name,
+                "phone": h.phone,
+                "created_at": h.created_at,
+                "specialist_count": sc,
             }
-            for hospital in hospitals
+            for (h, sc) in hospital_rows
         ]
 
         return {
@@ -177,20 +185,21 @@ class MedicalService:
         if not hospital:
             return None
 
-        # 관련 진료과들 조회
-        departments = (
-            db.query(Department)
+        # 관련 진료과들 조회(+ specialist_count)
+        dept_rows = (
+            db.query(Department, HospitalDepartment.specialist_count)
             .join(HospitalDepartment)
             .filter(HospitalDepartment.hospital_id == hospital.id)
             .all()
         )
 
-        # 보유 장비들 조회
-        equipment_data = (
-            db.query(HospitalEquipment, MedicalEquipmentSubcategory)
-            .join(MedicalEquipmentSubcategory)
-            .filter(HospitalEquipment.hospital_id == hospital.id)
-            .options(joinedload(MedicalEquipmentSubcategory.category))
+        # 보유 장비들 조회 (대분류 기준 구조로 변경)
+        equipment_rows = (
+            db.query(HospitalEquipment)
+            .filter(
+                HospitalEquipment.hospital_id == hospital.id,
+                HospitalEquipment.deleted_at.is_(None),
+            )
             .all()
         )
 
@@ -200,20 +209,19 @@ class MedicalService:
                 "id": dept.id,
                 "name": dept.name,
                 "created_at": dept.created_at,
+                "specialist_count": sc,
             }
-            for dept in departments
+            for (dept, sc) in dept_rows
         ]
 
         equipment_dicts = [
             {
-                "id": equip_subcat.id,
-                "name": equip_subcat.name,
-                "code": equip_subcat.code,
-                "category_name": equip_subcat.category.name,
-                "quantity": hosp_equip.quantity,
-                "is_operational": hosp_equip.is_operational,
+                "category_id": row.equipment_category_id,
+                "category_name": row.equipment_category_name,
+                "category_code": row.equipment_category_code,
+                "quantity": row.quantity,
             }
-            for hosp_equip, equip_subcat in equipment_data
+            for row in equipment_rows
         ]
 
         return {
@@ -374,6 +382,22 @@ class MedicalService:
         )
 
     @staticmethod
+    def get_all_hospital_types(db: Session):
+        from app.models.hospital import HospitalType
+        return db.query(HospitalType).all()
+
+    @staticmethod
+    def get_hospitals_by_type(
+        db: Session, type_code: Optional[str] = None, type_name: Optional[str] = None
+    ) -> List[Hospital]:
+        query = db.query(Hospital)
+        if type_code:
+            query = query.filter(Hospital.hospital_type_code == str(type_code))
+        if type_name:
+            query = query.filter(Hospital.hospital_type_name == str(type_name))
+        return query.all()
+
+    @staticmethod
     def get_all_equipment_subcategories(
         db: Session,
     ) -> List[MedicalEquipmentSubcategory]:
@@ -410,9 +434,10 @@ class MedicalService:
             db.query(MedicalEquipmentSubcategory)
             .options(
                 joinedload(MedicalEquipmentSubcategory.category),
-                joinedload(MedicalEquipmentSubcategory.hospital_equipment).joinedload(
-                    HospitalEquipment.hospital
-                ),
+                # NOTE: hospital_equipment 관계가 제거되어 주석 처리
+                # joinedload(MedicalEquipmentSubcategory.hospital_equipment).joinedload(
+                #     HospitalEquipment.hospital
+                # ),
             )
             .filter(
                 MedicalEquipmentSubcategory.id == subcategory_id,
@@ -422,20 +447,45 @@ class MedicalService:
         )
 
     @staticmethod
-    def get_hospitals_by_equipment_subcategory(
-        db: Session, subcategory_id: int
+    def get_hospitals_by_equipment_category(
+        db: Session, category_id: int
     ) -> List[Hospital]:
-        """특정 장비 세분류를 보유한 병원 목록 조회"""
-        return (
-            db.query(Hospital)
+        """특정 장비 대분류를 보유한 병원 목록 조회 (새로운 구조)"""
+        # JSON 컬럼 DISTINCT 이슈 회피: id만 distinct 후 엔티티 로드
+        id_rows = (
+            db.query(Hospital.id)
             .join(HospitalEquipment)
             .filter(
-                HospitalEquipment.equipment_subcategory_id == subcategory_id,
+                HospitalEquipment.equipment_category_id == category_id,
                 Hospital.deleted_at.is_(None),
                 HospitalEquipment.deleted_at.is_(None),
             )
             .distinct()
             .all()
+        )
+        ids = [r[0] for r in id_rows]
+        if not ids:
+            return []
+        return db.query(Hospital).filter(Hospital.id.in_(ids)).all()
+
+    @staticmethod
+    def get_hospitals_by_equipment_subcategory(
+        db: Session, subcategory_id: int
+    ) -> List[Hospital]:
+        """특정 장비 세분류를 보유한 병원 목록 조회 (레거시 지원)"""
+        # 세분류 ID로 대분류 찾기
+        subcategory = (
+            db.query(MedicalEquipmentSubcategory)
+            .filter(MedicalEquipmentSubcategory.id == subcategory_id)
+            .first()
+        )
+
+        if not subcategory:
+            return []
+
+        # 대분류 ID로 병원 조회
+        return MedicalService.get_hospitals_by_equipment_category(
+            db, subcategory.category_id
         )
 
     @staticmethod
@@ -451,11 +501,16 @@ class MedicalService:
             db, subcategory_id
         )
 
-        # 총 수량 계산
-        total_quantity = sum(
-            equipment.quantity
-            for equipment in subcategory.hospital_equipment
-            if equipment.deleted_at is None
+        # 총 수량 계산 (대분류 기준으로 합산)
+        from app.models.hospital import HospitalEquipment
+
+        total_quantity = (
+            db.query(func.coalesce(func.sum(HospitalEquipment.quantity), 0))
+            .filter(
+                HospitalEquipment.equipment_category_id == subcategory.category_id,
+                HospitalEquipment.deleted_at.is_(None),
+            )
+            .scalar()
         )
 
         return {

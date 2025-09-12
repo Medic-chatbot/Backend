@@ -106,6 +106,8 @@ jobs:
         ALLOWED_HOSTS_STRING: ${{ secrets.ALLOWED_HOSTS_STRING }}
         KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
         DEBUG: ${{ secrets.DEBUG }}
+        RECOMMEND_CONFIDENCE_THRESHOLD: ${{ secrets.RECOMMEND_CONFIDENCE_THRESHOLD }}
+        RECOMMEND_LIMIT: ${{ secrets.RECOMMEND_LIMIT }}
       run: |
         chmod +x scripts/deploy-ecs-tasks.sh
         ./scripts/deploy-ecs-tasks.sh

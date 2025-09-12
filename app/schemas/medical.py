@@ -121,6 +121,14 @@ class HospitalResponse(BaseModel):
         from_attributes = True
 
 
+class HospitalTypeResponse(BaseModel):
+    id: int
+    code: str
+    name: str
+    class Config:
+        from_attributes = True
+
+
 # ===== 의료장비 스키마 =====
 
 
@@ -265,6 +273,15 @@ class EquipmentDiseaseResponse(BaseModel):
         from_attributes = True
 
 
+class DiseaseEquipmentCategoryResponse(BaseModel):
+    id: int
+    disease: Dict[str, Any]
+    equipment_category: Dict[str, Any]
+    source: Optional[str] = None
+    class Config:
+        from_attributes = True
+
+
 # ===== 모델 추론 관련 스키마 =====
 
 
@@ -329,7 +346,7 @@ class HospitalRecommendationRequest(BaseModel):
     inference_result_id: int = Field(..., description="모델 추론 결과 ID")
     chat_room_id: int = Field(..., description="채팅방 ID")
     user_id: str = Field(..., description="사용자 ID (UUID)")
-    max_distance: Optional[float] = Field(20.0, description="최대 검색 거리 (km)")
+    max_distance: Optional[float] = Field(5.0, description="최대 검색 거리 (km)")
     limit: Optional[int] = Field(3, description="추천 병원 수")
 
 
@@ -347,6 +364,9 @@ class RecommendedHospitalResponse(BaseModel):
     department_match: bool
     equipment_match: bool
     recommended_reason: str
+    specialist_count: Optional[int] = None
+    equipment_details: Optional[List[Dict[str, Any]]] = None
+    score_breakdown: Optional[Dict[str, Any]] = None
 
     class Config:
         from_attributes = True
@@ -396,6 +416,7 @@ class HospitalRecommendationByDiseaseResponse(BaseModel):
     total_candidates: int
     recommendations: List[RecommendedHospitalResponse]
     search_criteria: Dict[str, Any]
+    required_equipment: Optional[List[str]] = None
 
     class Config:
         from_attributes = True
@@ -493,6 +514,39 @@ class EquipmentSubcategoryDetailResponse(BaseModel):
     category: EquipmentCategoryResponse
     quantity: int = 0
     hospitals: List[EquipmentHospitalResponse] = []
+
+    class Config:
+        from_attributes = True
+
+
+# ===== 병원 장비 관련 스키마 =====
+
+
+class HospitalEquipmentBase(BaseModel):
+    """병원 장비 기본 스키마"""
+
+    hospital_id: int
+    equipment_category_id: int
+    quantity: int = 1
+
+
+class HospitalEquipmentCreate(HospitalEquipmentBase):
+    """병원 장비 생성 스키마"""
+
+    hospital_name: Optional[str] = None
+    equipment_category_name: Optional[str] = None
+    equipment_category_code: Optional[str] = None
+
+
+class HospitalEquipmentResponse(HospitalEquipmentBase):
+    """병원 장비 응답 스키마"""
+
+    id: int
+    hospital_name: Optional[str] = None
+    equipment_category_name: Optional[str] = None
+    equipment_category_code: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
 
     class Config:
         from_attributes = True

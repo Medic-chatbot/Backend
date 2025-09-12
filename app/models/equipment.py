@@ -35,6 +35,12 @@ class MedicalEquipmentCategory(Base):
     subcategories = relationship(
         "MedicalEquipmentSubcategory", back_populates="category"
     )
+    hospital_equipment = relationship(
+        "HospitalEquipment", back_populates="equipment_category"
+    )
+    disease_mappings = relationship(
+        "DiseaseEquipmentCategory", back_populates="equipment_category"
+    )
 
 
 class MedicalEquipmentSubcategory(Base):
@@ -62,9 +68,6 @@ class MedicalEquipmentSubcategory(Base):
 
     # 관계 설정
     category = relationship("MedicalEquipmentCategory", back_populates="subcategories")
-    hospital_equipment = relationship(
-        "HospitalEquipment", back_populates="equipment_subcategory"
-    )
     equipment_diseases = relationship(
         "EquipmentDisease", back_populates="equipment_subcategory"
     )

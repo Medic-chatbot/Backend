@@ -59,6 +59,14 @@
         {
           "name": "KONLPY_DATA_PATH",
           "value": "/app/konlpy_data"
+        },
+        {
+          "name": "RECOMMEND_CONFIDENCE_THRESHOLD",
+          "value": "${RECOMMEND_CONFIDENCE_THRESHOLD}"
+        },
+        {
+          "name": "RECOMMEND_LIMIT",
+          "value": "${RECOMMEND_LIMIT}"
         }
       ],
       "resourceRequirements": [

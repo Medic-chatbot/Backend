@@ -37,6 +37,9 @@ DEVICE = (
     else "cpu"
 )
 API_SERVICE_URL = os.getenv("API_SERVICE_URL", "http://localhost:8000")
+# 추천 트리거 임계치/기본 limit 환경변수
+RECOMMEND_CONFIDENCE_THRESHOLD = float(os.getenv("RECOMMEND_CONFIDENCE_THRESHOLD", "0.8"))
+DEFAULT_RECOMMEND_LIMIT = int(os.getenv("RECOMMEND_LIMIT", "3"))
 
 # 전역 변수로 모델과 분석기 저장
 tokenizer = None
@@ -110,6 +113,9 @@ class SymptomRequest(BaseModel):
 
     text: str
     chat_room_id: Optional[int] = None
+    # 병원 추천 파라미터(옵션)
+    max_distance: Optional[float] = 5.0
+    limit: Optional[int] = 3
 
 
 class DiseaseClassification(BaseModel):
@@ -270,16 +276,28 @@ async def analyze_symptom(request: SymptomRequest):
         )
 
 
-async def _call_recommend_hospitals(disease_name: str, chat_room_id: int, authorization: Optional[str]):
+async def _call_recommend_hospitals(
+    disease_name: str,
+    chat_room_id: int,
+    authorization: Optional[str],
+    max_distance: Optional[float] = 5.0,
+    limit: Optional[int] = 3,
+):
     """내부 헬퍼: API 라이트 병원 추천 호출"""
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             headers = {"Content-Type": "application/json"}
             if authorization:
                 headers["Authorization"] = authorization
+            payload = {
+                "disease_name": disease_name,
+                "chat_room_id": chat_room_id,
+                "max_distance": max_distance or 5.0,
+                "limit": limit or 3,
+            }
             response = await client.post(
                 f"{API_SERVICE_URL}/api/medical/recommend-by-disease",
-                json={"disease_name": disease_name, "chat_room_id": chat_room_id},
+                json=payload,
                 headers=headers,
             )
             if response.status_code == 200:
@@ -301,7 +319,7 @@ async def full_analysis(request: SymptomRequest, authorization: Optional[str] = 
 
     - 증상 분석을 먼저 수행
     - 최상위 질환 신뢰도(confidence)가 0.8 이상이고 chat_room_id가 있을 때만
-    - 병원 추천 API를 호출하여 결과를 포함
+      병원 추천 API를 호출하여 결과를 포함
     """
     try:
         # 1. 증상 분석
@@ -314,9 +332,14 @@ async def full_analysis(request: SymptomRequest, authorization: Optional[str] = 
         except Exception:
             confidence = 0.0
 
-        if confidence >= 0.8 and request.chat_room_id and getattr(symptom_result, "top_disease", None) and authorization:
+        threshold = RECOMMEND_CONFIDENCE_THRESHOLD
+        if confidence >= threshold and request.chat_room_id and getattr(symptom_result, "top_disease", None) and authorization:
             hospital_result = await _call_recommend_hospitals(
-                symptom_result.top_disease, request.chat_room_id, authorization
+                symptom_result.top_disease,
+                request.chat_room_id,
+                authorization,
+                request.max_distance,
+                request.limit if request.limit is not None else DEFAULT_RECOMMEND_LIMIT,
             )
 
         return {
