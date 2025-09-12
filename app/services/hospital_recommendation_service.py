@@ -461,7 +461,6 @@ class HospitalRecommendationService:
         dept_id_list = [row[0] for row in dept_ids]
         if not dept_id_list:
             return 0
-
         total = (
             db.query(func.coalesce(func.sum(HospitalDepartment.specialist_count), 0))
             .filter(
@@ -509,3 +508,17 @@ class HospitalRecommendationService:
             }
             for (name, code, qty) in rows
         ]
+
+        total = (
+            db.query(func.coalesce(func.sum(HospitalDepartment.specialist_count), 0))
+            .filter(
+                HospitalDepartment.hospital_id == hospital_id,
+                HospitalDepartment.department_id.in_(dept_id_list),
+            )
+            .scalar()
+        )
+        try:
+            return int(total or 0)
+        except Exception:
+            return 0
+
