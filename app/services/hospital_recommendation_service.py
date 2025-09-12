@@ -508,17 +508,3 @@ class HospitalRecommendationService:
             }
             for (name, code, qty) in rows
         ]
-
-        total = (
-            db.query(func.coalesce(func.sum(HospitalDepartment.specialist_count), 0))
-            .filter(
-                HospitalDepartment.hospital_id == hospital_id,
-                HospitalDepartment.department_id.in_(dept_id_list),
-            )
-            .scalar()
-        )
-        try:
-            return int(total or 0)
-        except Exception:
-            return 0
-
