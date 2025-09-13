@@ -113,9 +113,23 @@ class HospitalResponse(BaseModel):
     id: int
     name: str
     address: str
+    latitude: float
+    longitude: float
     hospital_type_name: Optional[str] = None
     phone: Optional[str] = None
     created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class HospitalGeoResponse(BaseModel):
+    """병원 위치 요약 응답"""
+
+    id: int
+    name: str
+    latitude: float
+    longitude: float
 
     class Config:
         from_attributes = True
