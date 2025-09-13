@@ -26,7 +26,7 @@ services:
     ports:
       - "8001:8001"
     environment:
-      - MODEL_NAME=unu-dev/krbert_ms2d_v1
+      - MODEL_NAME=unu-dev/krbert_morph_s2d_fin_0.1
       - DEVICE=cuda  
       - API_SERVICE_URL=http://api:8000
       - PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:512

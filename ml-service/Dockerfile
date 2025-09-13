@@ -34,7 +34,7 @@ RUN mkdir -p /app/konlpy_data
 ENV KONLPY_DATA_PATH=/app/konlpy_data
 
 # 환경 변수 설정
-ENV MODEL_NAME=unu-dev/krbert_ms2d_v1
+ENV MODEL_NAME=unu-dev/krbert_morph_s2d_fin_0.1
 ENV DEVICE=cuda
 ENV API_SERVICE_URL=http://api-service:8000
 

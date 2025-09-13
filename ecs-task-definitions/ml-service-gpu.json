@@ -34,7 +34,7 @@
       "environment": [
         {
           "name": "MODEL_NAME",
-          "value": "unu-dev/krbert_ms2d_v1"
+          "value": "unu-dev/krbert_morph_s2d_fin_0.1"
         },
         {
           "name": "DEVICE",
