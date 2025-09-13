@@ -129,3 +129,13 @@ class ChatService:
         db.commit()
 
         return True
+
+    @staticmethod
+    def update_last_recommendation_pivot(db: Session, room_id: int, message_id: int) -> bool:
+        """추천 발생 시점의 USER 메시지 ID를 피벗으로 저장하여 윈도우를 리셋한다."""
+        chat_room = ChatService.get_chat_room(db, room_id)
+        if not chat_room:
+            return False
+        setattr(chat_room, "last_recommendation_message_id", int(message_id))
+        db.commit()
+        return True
