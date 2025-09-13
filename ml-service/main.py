@@ -30,7 +30,7 @@ ml_api = FastAPI(
 )
 
 # 환경 변수
-MODEL_NAME = os.getenv("MODEL_NAME", "unu-dev/krbert_ms2d_v1")
+MODEL_NAME = os.getenv("MODEL_NAME", "unu-dev/krbert_morph_s2d_fin_0.1")
 DEVICE = (
     "cuda"
     if torch.cuda.is_available() and os.getenv("DEVICE", "cpu") == "cuda"
