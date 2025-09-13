@@ -97,11 +97,11 @@ test_websocket.html
 
 # Alembic
 alembic/__pycache__/
-alembic/versions/*.py
+# 버전 파일은 커밋 대상으로 유지
+!alembic/versions/*.py
 
 # 배포 스크립트는 포함하되 실행 결과 제외
 scripts/logs/
 scripts/tmp/
 scripts/migrate-simple.sh
 scripts/migrate.sh
-
