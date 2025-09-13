@@ -177,31 +177,6 @@ jobs:
 
         # Nginx 서비스 제거됨 - ALB에서 직접 라우팅
 
-    # Alembic 마이그레이션 (API 컨테이너 내에서 실행)
-    - name: Run Alembic migrations on API service
-      if: steps.env.outputs.environment == 'prod'
-      env:
-        CLUSTER: medic-gpu-cluster
-      run: |
-        set -e
-        echo "Enabling execute-command on API service (idempotent)"
-        aws ecs update-service --cluster $CLUSTER \
-                               --service medic-api-service \
-                               --enable-execute-command \
-                               --region ${{ env.AWS_REGION }} >/dev/null || true
-        echo "Fetching latest API task ARN"
-        TASK_ARN=$(aws ecs list-tasks --cluster $CLUSTER \
-                                         --service-name medic-api-service \
-                                         --region ${{ env.AWS_REGION }} \
-                                         --query 'taskArns[0]' --output text)
-        echo "Executing Alembic migration in container: medic-api-container"
-        aws ecs execute-command --cluster $CLUSTER \
-                                --task "$TASK_ARN" \
-                                --container medic-api-container \
-                                --region ${{ env.AWS_REGION }} \
-                                --interactive \
-                                --command "bash -lc 'alembic upgrade head && alembic current'"
-
     # Alembic 마이그레이션 (원오프 Fargate 태스크로 실행)
     - name: Run Alembic migrations (one-off task)
       if: steps.env.outputs.environment == 'prod'

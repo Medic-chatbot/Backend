@@ -29,6 +29,11 @@ SGS=$(aws ecs describe-services \
   --region "$REGION" \
   --query 'services[0].networkConfiguration.awsvpcConfiguration.securityGroups' \
   --output text)
+ASSIGN_PUBLIC=$(aws ecs describe-services \
+  --cluster "$CLUSTER" --services "$API_FAMILY" \
+  --region "$REGION" \
+  --query 'services[0].networkConfiguration.awsvpcConfiguration.assignPublicIp' \
+  --output text)
 
 if [[ -z "$SUBNETS" || "$SUBNETS" == "None" ]]; then
   echo "[migrate] ERROR: Could not determine service subnets. Ensure the service exists and has awsvpcConfiguration." >&2
@@ -55,12 +60,15 @@ OVERRIDES=$(cat << JSON
 JSON
 )
 
+ASSIGN_PUBLIC_LOWER=$(echo "${ASSIGN_PUBLIC:-DISABLED}" | tr '[:upper:]' '[:lower:]')
+if [[ "$ASSIGN_PUBLIC_LOWER" != "enabled" ]]; then ASSIGN_PUBLIC_OPT=DISABLED; else ASSIGN_PUBLIC_OPT=ENABLED; fi
+
 TASK_ARN=$(aws ecs run-task \
   --cluster "$CLUSTER" \
   --task-definition "$API_TD" \
   --launch-type FARGATE \
   --region "$REGION" \
-  --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS_CSV]$( [[ -n "$SGS_CSV" ]] && echo ",securityGroups=[$SGS_CSV]" ),assignPublicIp=ENABLED}" \
+  --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS_CSV]$( [[ -n "$SGS_CSV" ]] && echo ",securityGroups=[$SGS_CSV]" ),assignPublicIp=$ASSIGN_PUBLIC_OPT}" \
   --overrides "$OVERRIDES" \
   --query 'tasks[0].taskArn' --output text)
 
@@ -83,4 +91,3 @@ if [[ "$STATUS" != "0" ]]; then
 fi
 
 echo "[migrate] Alembic migration completed successfully"
-
