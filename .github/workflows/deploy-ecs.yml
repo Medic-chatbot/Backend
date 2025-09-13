@@ -177,13 +177,6 @@ jobs:
 
         # Nginx 서비스 제거됨 - ALB에서 직접 라우팅
 
-    # Alembic 마이그레이션 (원오프 Fargate 태스크로 실행)
-    - name: Run Alembic migrations (one-off task)
-      if: steps.env.outputs.environment == 'prod'
-      run: |
-        chmod +x scripts/run-alembic-ecs.sh
-        AWS_REGION=${{ env.AWS_REGION }} CLUSTER=medic-gpu-cluster scripts/run-alembic-ecs.sh
-
     # 배포 알림
     - name: Deployment notification
       run: |
