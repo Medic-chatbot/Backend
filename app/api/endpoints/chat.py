@@ -410,8 +410,15 @@ async def websocket_endpoint(
 
                         # 이전 USER 메시지들과 현재 메시지를 결합하여 더 풍부한 증상 맥락 제공
                         from app.core.config import settings
-                        history_msgs = ChatService.get_chat_messages(db, room_id, limit=100)
-                        user_texts = [m.content for m in history_msgs if getattr(m, 'message_type', '') == 'USER']
+                        # 윈도우 정책: 직전 추천 피벗 이후의 USER 메시지들만 결합
+                        chat_room = ChatService.get_chat_room(db, room_id)
+                        pivot_id = getattr(chat_room, 'last_recommendation_message_id', None) if chat_room else None
+                        history_msgs = ChatService.get_chat_messages(db, room_id, limit=200)
+                        user_texts = [
+                            m.content
+                            for m in history_msgs
+                            if getattr(m, 'message_type', '') == 'USER' and (pivot_id is None or m.id > pivot_id)
+                        ]
                         # 최근 N개 사용자 문장만 사용
                         n = int(getattr(settings, 'SYMPTOM_HISTORY_UTTERANCES', 5) or 5)
                         combined_text = "\n".join(user_texts[-n:]) if user_texts else content
@@ -458,45 +465,91 @@ async def websocket_endpoint(
                                     else None
                                 )
 
-                                # Disease ID 조회 (label -> id 변환)
-                                first_disease_record = None
-                                if first_disease:
-                                    first_disease_record = (
+                                # Disease ID 조회 (label -> id 변환) with fallback 매칭
+                                def _resolve_disease_id(label: str):
+                                    if not label:
+                                        return None
+                                    # 1) 정확 일치
+                                    rec = db.query(Disease).filter(Disease.name == label).first()
+                                    if rec:
+                                        return rec.id
+                                    # 2) 부분 일치(대소문자/공백 무시)
+                                    rec = (
                                         db.query(Disease)
-                                        .filter(
-                                            Disease.name.ilike(
-                                                f"%{first_disease['label']}%"
-                                            )
-                                        )
+                                        .filter(Disease.name.ilike(f"%{label}%"))
                                         .first()
                                     )
+                                    if rec:
+                                        return rec.id
+                                    # 3) 공백 제거 비교
+                                    try:
+                                        from sqlalchemy import func
+                                        rec = (
+                                            db.query(Disease)
+                                            .filter(func.replace(Disease.name, ' ', '') == label.replace(' ', ''))
+                                            .first()
+                                        )
+                                        if rec:
+                                            return rec.id
+                                    except Exception:
+                                        pass
+                                    return None
 
-                                if first_disease_record:
+                                first_id = _resolve_disease_id(first_disease.get("label") if first_disease else None)
+                                second_id = _resolve_disease_id(second_disease.get("label") if second_disease else None)
+                                third_id = _resolve_disease_id(third_disease.get("label") if third_disease else None)
+
+                                if first_id:
                                     inference_result = ModelInferenceResult(
                                         chat_message_id=user_message.id,
-                                        input_text=content,
+                                        # 실제 추론에 사용한 입력(최근 N개 합성 텍스트) 저장
+                                        input_text=combined_text,
                                         processed_text=processed_text,
-                                        first_disease_id=first_disease_record.id,
-                                        first_disease_score=first_disease["score"],
-                                        second_disease_id=None,  # TODO: 구현 필요
+                                        first_disease_id=int(first_id),
+                                        first_disease_score=float(first_disease["score"]),
+                                        second_disease_id=int(second_id) if second_id else None,
                                         second_disease_score=(
-                                            second_disease["score"]
-                                            if second_disease
-                                            else None
+                                            float(second_disease["score"]) if second_disease else None
                                         ),
-                                        third_disease_id=None,  # TODO: 구현 필요
+                                        third_disease_id=int(third_id) if third_id else None,
                                         third_disease_score=(
-                                            third_disease["score"]
-                                            if third_disease
-                                            else None
+                                            float(third_disease["score"]) if third_disease else None
                                         ),
-                                        inference_time=ml_result.get(
-                                            "inference_time", 0
-                                        ),
+                                        inference_time=ml_result.get("inference_time", 0),
                                     )
                                     db.add(inference_result)
                                     db.commit()
                                     db.refresh(inference_result)
+
+                                    # 임계치 이상으로 병원 추천이 생성된 경우, 추천 결과를 DB에도 영속화
+                                    hospital_result = ml_result.get("hospital_recommendations")
+                                    if hospital_result:
+                                        try:
+                                            # 추천 검색 파라미터 추출
+                                            sc = hospital_result.get("search_criteria") or {}
+                                            max_distance = sc.get("max_distance") or 5.0
+                                            limit = sc.get("limit") or 3
+                                            from app.services.hospital_recommendation_service import (
+                                                HospitalRecommendationService,
+                                            )
+                                            HospitalRecommendationService.recommend_hospitals(
+                                                db=db,
+                                                inference_result_id=int(inference_result.id),
+                                                user_id=str(user_id),
+                                                max_distance_km=float(max_distance),
+                                                limit=int(limit),
+                                            )
+                                            # 추천 완료: 윈도우 리셋(피벗 갱신)
+                                            try:
+                                                ChatService.update_last_recommendation_pivot(
+                                                    db, room_id, user_message.id
+                                                )
+                                            except Exception:
+                                                pass
+                                        except Exception as e:
+                                            logger.warning(
+                                                f"병원 추천 영속화 실패(무시): {e}"
+                                            )
                             # 증상 분석 결과 메시지 생성
                             symptom_msg = ml_client.format_disease_results(ml_result)
 
