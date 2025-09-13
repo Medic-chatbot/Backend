@@ -24,6 +24,7 @@ from app.schemas.medical import (
     HospitalRecommendationByDiseaseRequest,
     HospitalRecommendationByDiseaseResponse,
     HospitalResponse,
+    HospitalGeoResponse,
     MedicalEquipmentCategoryResponse,
     MedicalEquipmentSubcategoryResponse,
 )
@@ -293,6 +294,46 @@ def get_hospital_detail(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="서버 내부 오류가 발생했습니다.",
+        )
+
+
+# ===== 병원 위치 요약 엔드포인트 =====
+
+
+@router.get("/hospitals/geo", response_model=List[HospitalGeoResponse])
+def list_hospitals_geo(
+    *,
+    db: Session = Depends(get_db),
+    hospital_id: Optional[int] = Query(None, description="병원 ID로 필터링"),
+    name: Optional[str] = Query(None, description="병원명 검색어(부분 일치)"),
+) -> List[HospitalGeoResponse]:
+    """병원 ID·이름·위도·경도만 반환하는 경량 조회 API.
+
+    - 파라미터가 없으면 전체를 반환
+    - `hospital_id`가 있으면 해당 ID만 반환
+    - `name`이 있으면 병원명 부분 일치로 필터링
+    """
+    try:
+        from app.models.hospital import Hospital
+
+        query = db.query(Hospital)
+        if hospital_id is not None:
+            query = query.filter(Hospital.id == int(hospital_id))
+        if name:
+            query = query.filter(Hospital.name.ilike(f"%{name}%"))
+
+        hospitals = query.all()
+        return [
+            HospitalGeoResponse(
+                id=h.id, name=h.name, latitude=h.latitude, longitude=h.longitude
+            )
+            for h in hospitals
+        ]
+    except Exception as e:
+        logger.error(f"Error fetching hospitals geo: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="병원 위치 정보를 가져오는 중 오류가 발생했습니다.",
         )
 
 
@@ -668,6 +709,3 @@ def list_disease_equipment(
 def list_hospital_types(db: Session = Depends(get_db)):
     rows = MedicalService.get_all_hospital_types(db)
     return [HospitalTypeResponse.from_orm(x) for x in rows]
-
-
-## (하단 중복 선언 제거)
