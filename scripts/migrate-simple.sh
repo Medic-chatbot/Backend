@@ -14,15 +14,15 @@ fi
 
 MESSAGE="$1"
 
-echo "🚀 Alembic 마이그레이션 시작..."
+echo "Alembic 마이그레이션 시작..."
 echo "메시지: $MESSAGE"
 echo
 
 # 1. Docker 컨테이너가 실행 중인지 확인
 echo "📋 Docker 컨테이너 상태 확인..."
 if ! docker-compose ps | grep -q "backend-api-1.*Up"; then
-    echo "❌ API 컨테이너가 실행되지 않았습니다."
-    echo "💡 Docker를 재시작합니다..."
+    echo "API 컨테이너가 실행되지 않았습니다."
+    echo "Docker를 재시작합니다..."
     docker-compose down && docker-compose up -d
     
     # 컨테이너가 완전히 시작될 때까지 대기
@@ -40,11 +40,11 @@ docker-compose exec api alembic upgrade head
 
 # 3. 현재 상태 확인
 echo
-echo "📊 현재 마이그레이션 상태:"
+echo "현재 마이그레이션 상태:"
 docker-compose exec api alembic current
 
 echo
-echo "🎉 마이그레이션 완료!"
-echo "💡 volumes 동기화로 인해 로컬에 자동으로 파일이 동기화되었습니다."
-echo "📁 확인: ./alembic/versions/ 디렉토리"
-echo "💡 Git에 커밋하는 것을 잊지 마세요!"
+echo "마이그레이션 완료!"
+echo "volumes 동기화로 인해 로컬에 자동으로 파일이 동기화되었습니다."
+echo "확인: ./alembic/versions/ 디렉토리"
+echo "Git에 커밋하는 것을 잊지 마세요!"

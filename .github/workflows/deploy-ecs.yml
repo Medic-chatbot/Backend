@@ -85,7 +85,6 @@ jobs:
         docker build -f ml-service/Dockerfile -t $ECR_REGISTRY/medic-ml-service:${{ steps.env.outputs.image_tag }} .
         docker push $ECR_REGISTRY/medic-ml-service:${{ steps.env.outputs.image_tag }}
 
-    # Nginx 제거됨 - ALB에서 직접 라우팅
 
     # 태스크 정의 업데이트 및 등록
     - name: Deploy ECS Task Definitions
@@ -175,12 +174,11 @@ jobs:
                                 --region ${{ env.AWS_REGION }}
         fi
 
-        # Nginx 서비스 제거됨 - ALB에서 직접 라우팅
 
     # 배포 알림
     - name: Deployment notification
       run: |
-        echo "🚀 배포 완료!"
+        echo "배포 완료!"
         echo "환경: ${{ steps.env.outputs.environment }}"
         echo "이미지 태그: ${{ steps.env.outputs.image_tag }}"
         echo "커밋: ${{ github.sha }}"

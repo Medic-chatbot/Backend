@@ -148,7 +148,7 @@ class MLServiceClient:
             for i, disease in enumerate(disease_classifications[1:4], 1):
                 message += f"{i}. {disease['label']} ({disease['score']:.1%})\n"
 
-        message += "\n⚠️ 이는 AI 분석 결과이며, 정확한 진단을 위해서는 반드시 의료진과 상담하시기 바랍니다."
+        message += "\n이는 AI 분석 결과이며, 정확한 진단을 위해서는 반드시 의료진과 상담하시기 바랍니다."
 
         return message
 
@@ -164,7 +164,7 @@ class MLServiceClient:
         except Exception:
             radius = None
 
-        header = "\n\n🏥 **추천 병원 정보**"
+        header = "\n\n**추천 병원 정보**"
         if radius:
             try:
                 header += f" (반경 {float(radius):.0f}km 내)"
@@ -186,7 +186,7 @@ class MLServiceClient:
                 address = h.get("address") or h.get("hospital", {}).get("address") or "주소 정보 없음"
                 phone = h.get("phone") or h.get("hospital", {}).get("phone") or "전화번호 정보 없음"
 
-                message += f"\n{i}. **{name}**\n   📍 {address}\n"
+                message += f"\n{i}. **{name}**\n   {address}\n"
                 if phone and phone != "전화번호 정보 없음":
                     message += f"   📞 {phone}\n"
 
@@ -201,7 +201,7 @@ class MLServiceClient:
                             if n and q is not None:
                                 parts.append(f"{n} x {q}")
                         if parts:
-                            message += f"   🔧 장비: " + ", ".join(parts) + "\n"
+                            message += f"   장비: " + ", ".join(parts) + "\n"
 
                 # 랭킹 이유(점수 요약)
                 sb = h.get("score_breakdown") or {}
@@ -218,7 +218,7 @@ class MLServiceClient:
                         w_s = weights.get("spec")
                         w_d = weights.get("dist")
                         if fs is not None:
-                            message += f"   ⭐ 총점: {fs}"
+                            message += f"   총점: {fs}"
                             # 가장 큰 기여 요인 표시
                             comps = [("장비", es or 0), ("전문의", ss or 0), ("거리", ds or 0)]
                             comps.sort(key=lambda x: x[1], reverse=True)
@@ -231,7 +231,7 @@ class MLServiceClient:
                             )
                         # 우선순위 보너스는 사용자 메시지에서 비노출 (불확정 요인)
                         if tr:
-                            message += f"   📌 필수장비 매칭: {mc}/{tr}\n"
+                            message += f"   필수장비 매칭: {mc}/{tr}\n"
                     except Exception:
                         pass
         else:
