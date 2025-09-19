@@ -317,8 +317,11 @@ async def websocket_endpoint(
     db: Session = Depends(get_db),
 ):
     """WebSocket 채팅 엔드포인트"""
+    logger.info(f"WebSocket connection attempt: room_id={room_id}, token={token[:20] if token else None}...")
+    
     # JWT 토큰 검증 및 사용자 인증
     if not token:
+        logger.warning("WebSocket connection rejected: No token provided")
         await websocket.close(code=1008, reason="Authentication required")
         return
 
@@ -336,13 +339,15 @@ async def websocket_endpoint(
             # UUID로 변환
             user_id = UUID(user_id_str)
 
-        except JWTError:
+        except JWTError as e:
+            logger.warning(f"WebSocket connection rejected: JWT validation failed - {str(e)}")
             await websocket.close(code=1008, reason="Token validation failed")
             return
 
         # 사용자 존재 확인
         user = db.query(User).filter(User.id == user_id).first()
         if not user:
+            logger.warning(f"WebSocket connection rejected: User not found - {user_id}")
             await websocket.close(code=1008, reason="User not found")
             return
 
