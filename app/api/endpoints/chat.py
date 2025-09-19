@@ -19,6 +19,7 @@ from fastapi import (
     APIRouter,
     Depends,
     HTTPException,
+    Query,
     WebSocket,
     WebSocketDisconnect,
     status,
@@ -187,7 +188,9 @@ async def get_chat_messages(
 
         # 채팅방이 현재 사용자의 것인지 확인
         if str(chat_room.user_id) != str(current_user.id):
-            logger.warning(f"Unauthorized access to chat room {room_id} by user {current_user.id}")
+            logger.warning(
+                f"Unauthorized access to chat room {room_id} by user {current_user.id}"
+            )
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="이 채팅방에 접근할 권한이 없습니다.",
@@ -310,7 +313,7 @@ async def delete_chat_room(
 async def websocket_endpoint(
     websocket: WebSocket,
     room_id: int,
-    token: Optional[str] = None,
+    token: Optional[str] = Query(None),
     db: Session = Depends(get_db),
 ):
     """WebSocket 채팅 엔드포인트"""
@@ -410,18 +413,28 @@ async def websocket_endpoint(
 
                         # 이전 USER 메시지들과 현재 메시지를 결합하여 더 풍부한 증상 맥락 제공
                         from app.core.config import settings
+
                         # 윈도우 정책: 직전 추천 피벗 이후의 USER 메시지들만 결합
                         chat_room = ChatService.get_chat_room(db, room_id)
-                        pivot_id = getattr(chat_room, 'last_recommendation_message_id', None) if chat_room else None
-                        history_msgs = ChatService.get_chat_messages(db, room_id, limit=200)
+                        pivot_id = (
+                            getattr(chat_room, "last_recommendation_message_id", None)
+                            if chat_room
+                            else None
+                        )
+                        history_msgs = ChatService.get_chat_messages(
+                            db, room_id, limit=200
+                        )
                         user_texts = [
                             m.content
                             for m in history_msgs
-                            if getattr(m, 'message_type', '') == 'USER' and (pivot_id is None or m.id > pivot_id)
+                            if getattr(m, "message_type", "") == "USER"
+                            and (pivot_id is None or m.id > pivot_id)
                         ]
                         # 최근 N개 사용자 문장만 사용
-                        n = int(getattr(settings, 'SYMPTOM_HISTORY_UTTERANCES', 5) or 5)
-                        combined_text = "\n".join(user_texts[-n:]) if user_texts else content
+                        n = int(getattr(settings, "SYMPTOM_HISTORY_UTTERANCES", 5) or 5)
+                        combined_text = (
+                            "\n".join(user_texts[-n:]) if user_texts else content
+                        )
 
                         # 전체 분석 엔드포인트에서 임계치/추천 여부를 일괄 판단
                         ml_result = await ml_client.get_full_analysis(
@@ -470,7 +483,11 @@ async def websocket_endpoint(
                                     if not label:
                                         return None
                                     # 1) 정확 일치
-                                    rec = db.query(Disease).filter(Disease.name == label).first()
+                                    rec = (
+                                        db.query(Disease)
+                                        .filter(Disease.name == label)
+                                        .first()
+                                    )
                                     if rec:
                                         return rec.id
                                     # 2) 부분 일치(대소문자/공백 무시)
@@ -484,9 +501,13 @@ async def websocket_endpoint(
                                     # 3) 공백 제거 비교
                                     try:
                                         from sqlalchemy import func
+
                                         rec = (
                                             db.query(Disease)
-                                            .filter(func.replace(Disease.name, ' ', '') == label.replace(' ', ''))
+                                            .filter(
+                                                func.replace(Disease.name, " ", "")
+                                                == label.replace(" ", "")
+                                            )
                                             .first()
                                         )
                                         if rec:
@@ -495,9 +516,21 @@ async def websocket_endpoint(
                                         pass
                                     return None
 
-                                first_id = _resolve_disease_id(first_disease.get("label") if first_disease else None)
-                                second_id = _resolve_disease_id(second_disease.get("label") if second_disease else None)
-                                third_id = _resolve_disease_id(third_disease.get("label") if third_disease else None)
+                                first_id = _resolve_disease_id(
+                                    first_disease.get("label")
+                                    if first_disease
+                                    else None
+                                )
+                                second_id = _resolve_disease_id(
+                                    second_disease.get("label")
+                                    if second_disease
+                                    else None
+                                )
+                                third_id = _resolve_disease_id(
+                                    third_disease.get("label")
+                                    if third_disease
+                                    else None
+                                )
 
                                 if first_id:
                                     inference_result = ModelInferenceResult(
@@ -506,35 +539,55 @@ async def websocket_endpoint(
                                         input_text=combined_text,
                                         processed_text=processed_text,
                                         first_disease_id=int(first_id),
-                                        first_disease_score=float(first_disease["score"]),
-                                        second_disease_id=int(second_id) if second_id else None,
+                                        first_disease_score=float(
+                                            first_disease["score"]
+                                        ),
+                                        second_disease_id=(
+                                            int(second_id) if second_id else None
+                                        ),
                                         second_disease_score=(
-                                            float(second_disease["score"]) if second_disease else None
+                                            float(second_disease["score"])
+                                            if second_disease
+                                            else None
                                         ),
-                                        third_disease_id=int(third_id) if third_id else None,
+                                        third_disease_id=(
+                                            int(third_id) if third_id else None
+                                        ),
                                         third_disease_score=(
-                                            float(third_disease["score"]) if third_disease else None
+                                            float(third_disease["score"])
+                                            if third_disease
+                                            else None
                                         ),
-                                        inference_time=ml_result.get("inference_time", 0),
+                                        inference_time=ml_result.get(
+                                            "inference_time", 0
+                                        ),
                                     )
                                     db.add(inference_result)
                                     db.commit()
                                     db.refresh(inference_result)
 
                                     # 임계치 이상으로 병원 추천이 생성된 경우, 추천 결과를 DB에도 영속화
-                                    hospital_result = ml_result.get("hospital_recommendations")
+                                    hospital_result = ml_result.get(
+                                        "hospital_recommendations"
+                                    )
                                     if hospital_result:
                                         try:
                                             # 추천 검색 파라미터 추출
-                                            sc = hospital_result.get("search_criteria") or {}
+                                            sc = (
+                                                hospital_result.get("search_criteria")
+                                                or {}
+                                            )
                                             max_distance = sc.get("max_distance") or 5.0
                                             limit = sc.get("limit") or 3
                                             from app.services.hospital_recommendation_service import (
                                                 HospitalRecommendationService,
                                             )
+
                                             HospitalRecommendationService.recommend_hospitals(
                                                 db=db,
-                                                inference_result_id=int(inference_result.id),
+                                                inference_result_id=int(
+                                                    inference_result.id
+                                                ),
                                                 user_id=str(user_id),
                                                 max_distance_km=float(max_distance),
                                                 limit=int(limit),
