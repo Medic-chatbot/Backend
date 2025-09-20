@@ -158,7 +158,7 @@ async def create_chat_room(
     """새 채팅방 생성"""
     try:
         user_uuid = UUID(str(current_user.id))
-        chat_room = ChatService.create_chat_room(db, room_data.title, user_uuid)
+        chat_room = ChatService.create_chat_room(db, user_uuid, room_data.title)
         return chat_room
     except Exception as e:
         raise HTTPException(
@@ -177,7 +177,7 @@ async def get_chat_messages(
     try:
         # 사용자가 해당 채팅방에 접근 권한이 있는지 확인
         user_uuid = UUID(str(current_user.id))
-        chat_room = ChatService.get_chat_room_by_id(db, room_id)
+        chat_room = ChatService.get_chat_room(db, room_id)
         if not chat_room or chat_room.user_id != user_uuid:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -207,7 +207,7 @@ async def send_message(
     try:
         # 사용자가 해당 채팅방에 접근 권한이 있는지 확인
         user_uuid = UUID(str(current_user.id))
-        chat_room = ChatService.get_chat_room_by_id(db, room_id)
+        chat_room = ChatService.get_chat_room(db, room_id)
         if not chat_room or chat_room.user_id != user_uuid:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -306,7 +306,7 @@ async def delete_chat_room(
     try:
         # 사용자가 해당 채팅방에 접근 권한이 있는지 확인
         user_uuid = UUID(str(current_user.id))
-        chat_room = ChatService.get_chat_room_by_id(db, room_id)
+        chat_room = ChatService.get_chat_room(db, room_id)
         if not chat_room or chat_room.user_id != user_uuid:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
