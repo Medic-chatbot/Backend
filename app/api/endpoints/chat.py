@@ -54,7 +54,7 @@ class MessageSend(BaseModel):
 class MessageResponse(BaseModel):
     id: int
     content: str
-    sender_type: str
+    message_type: str
     created_at: datetime
 
     class Config:
@@ -371,6 +371,15 @@ async def websocket_endpoint(
             await websocket.close(code=1008, reason="User not found")
             return
 
+        # 채팅방 권한 확인
+        chat_room = ChatService.get_chat_room(db, room_id)
+        if not chat_room or chat_room.user_id != user_id:
+            logger.warning(
+                f"WebSocket connection rejected: No access to room {room_id} for user {user_id}"
+            )
+            await websocket.close(code=1008, reason="Access denied")
+            return
+
         await manager.connect(websocket, room_id, str(user_id))
 
         # 연결 성공 메시지
@@ -389,11 +398,125 @@ async def websocket_endpoint(
                 data = await websocket.receive_json()
                 logger.info(f"Received message: {data}")
 
-                # 간단한 에코 응답
+                message_content = data.get("content", "")
+                if not message_content:
+                    continue
+
+                # 사용자 메시지 저장
+                user_message = ChatService.create_chat_message(
+                    db, room_id, "USER", message_content
+                )
+
+                # 사용자 메시지 전송
                 await websocket.send_json(
                     {
-                        "type": "echo",
-                        "content": f"Echo: {data.get('content', '')}",
+                        "type": "user_message",
+                        "message": {
+                            "id": user_message.id,
+                            "content": user_message.content,
+                            "message_type": user_message.message_type,
+                            "created_at": user_message.created_at.isoformat(),
+                        },
+                        "room_id": room_id,
+                        "timestamp": datetime.now().isoformat(),
+                    }
+                )
+
+                # ML 서비스를 통한 증상 분석
+                bot_content = "분석 중입니다..."
+
+                # 먼저 "분석 중" 메시지 저장 및 전송
+                analyzing_message = ChatService.create_chat_message(
+                    db, room_id, "BOT", bot_content
+                )
+
+                await websocket.send_json(
+                    {
+                        "type": "bot_message",
+                        "message": {
+                            "id": analyzing_message.id,
+                            "content": analyzing_message.content,
+                            "message_type": analyzing_message.message_type,
+                            "created_at": analyzing_message.created_at.isoformat(),
+                        },
+                        "room_id": room_id,
+                        "timestamp": datetime.now().isoformat(),
+                    }
+                )
+
+                try:
+                    # ML 서비스 호출
+                    ml_result = await ml_client.analyze_symptom(message_content)
+
+                    # ML 결과 처리
+                    if ml_result and "diseases" in ml_result:
+                        diseases = ml_result["diseases"]
+                        if diseases:
+                            # 가장 높은 확률의 질병 선택
+                            top_disease = diseases[0]
+                            disease_id = top_disease.get("disease_id")
+                            confidence = top_disease.get("confidence", 0)
+
+                            # 질병 정보 조회
+                            from app.models.medical import Disease
+
+                            disease = (
+                                db.query(Disease)
+                                .filter(Disease.id == disease_id)
+                                .first()
+                            )
+
+                            if disease:
+                                # 질병 정보를 포함한 봇 응답 생성
+                                bot_content = f"분석 결과: {disease.name} (신뢰도: {confidence:.1%})\n\n{disease.description}"
+
+                                # 병원 추천 결과 처리
+                                hospital_result = ml_result.get(
+                                    "hospital_recommendations"
+                                )
+                                if hospital_result:
+                                    from app.services.hospital_recommendation_service import (
+                                        HospitalRecommendationService,
+                                    )
+
+                                    try:
+                                        hospital_recommendations = HospitalRecommendationService.recommend_hospitals(
+                                            db, user_id, disease_id, limit=3
+                                        )
+
+                                        if hospital_recommendations:
+                                            hospital_names = [
+                                                h.name for h in hospital_recommendations
+                                            ]
+                                            bot_content += f"\n\n추천 병원: {', '.join(hospital_names)}"
+
+                                    except Exception as e:
+                                        logger.warning(
+                                            f"병원 추천 영속화 실패(무시): {e}"
+                                        )
+                        else:
+                            bot_content = "증상에 대해 더 자세히 알려주시면 보다 정확한 정보를 제공해드릴 수 있습니다."
+                    else:
+                        bot_content = "증상에 대해 더 자세히 알려주시면 보다 정확한 정보를 제공해드릴 수 있습니다."
+
+                except Exception as e:
+                    logger.error(f"ML 분석 중 오류: {str(e)}")
+                    bot_content = "증상에 대해 더 자세히 알려주시면 보다 정확한 정보를 제공해드릴 수 있습니다."
+
+                # 최종 봇 메시지 저장 및 전송
+                bot_message = ChatService.create_chat_message(
+                    db, room_id, "BOT", bot_content
+                )
+
+                await websocket.send_json(
+                    {
+                        "type": "bot_message",
+                        "message": {
+                            "id": bot_message.id,
+                            "content": bot_message.content,
+                            "message_type": bot_message.message_type,
+                            "created_at": bot_message.created_at.isoformat(),
+                        },
                         "room_id": room_id,
                         "timestamp": datetime.now().isoformat(),
                     }
