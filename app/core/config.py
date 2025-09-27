@@ -46,7 +46,7 @@ class Settings(BaseSettings):
 
     # 서비스 URL 설정 (환경변수에서 로딩)
     ML_SERVICE_URL: str = "http://ml-service:8001"  # 내부 서비스 직접 통신
-    API_SERVICE_URL: str = ""  # .env에서 로드
+    API_SERVICE_URL: str = "http://localhost:8000"  # .env에서 로드
     ALB_HOST: str = ""  # .env에서 로드
 
     # 추천 관련 공통 설정(로깅/분기 통일성)
