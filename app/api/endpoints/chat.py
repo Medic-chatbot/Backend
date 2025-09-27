@@ -232,13 +232,13 @@ async def send_message(
             ml_result = await ml_client.analyze_symptom(message_data.content)
 
             # ML 결과 처리
-            if ml_result and "diseases" in ml_result:
-                diseases = ml_result["diseases"]
+            if ml_result and "disease_classifications" in ml_result:
+                diseases = ml_result["disease_classifications"]
                 if diseases:
                     # 가장 높은 확률의 질병 선택
                     top_disease = diseases[0]
                     disease_id = top_disease.get("disease_id")
-                    confidence = top_disease.get("confidence", 0)
+                    confidence = top_disease.get("score", 0)  # score로 변경
 
                     # 질병 정보 조회
                     from app.models.medical import Disease
@@ -449,13 +449,13 @@ async def websocket_endpoint(
                     ml_result = await ml_client.analyze_symptom(message_content)
 
                     # ML 결과 처리
-                    if ml_result and "diseases" in ml_result:
-                        diseases = ml_result["diseases"]
+                    if ml_result and "disease_classifications" in ml_result:
+                        diseases = ml_result["disease_classifications"]
                         if diseases:
                             # 가장 높은 확률의 질병 선택
                             top_disease = diseases[0]
                             disease_id = top_disease.get("disease_id")
-                            confidence = top_disease.get("confidence", 0)
+                            confidence = top_disease.get("score", 0)  # score로 변경
 
                             # 질병 정보 조회
                             from app.models.medical import Disease

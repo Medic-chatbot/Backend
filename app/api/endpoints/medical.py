@@ -5,36 +5,36 @@
 import logging
 from typing import Any, List, Optional
 
-from app.api.deps import get_db, get_current_user
+from app.api.deps import get_current_user, get_db
+from app.models.disease_equipment import DiseaseEquipmentCategory
+from app.models.hospital import HospitalEquipment
 from app.models.user import User
 from app.schemas.medical import (
     DepartmentDetailResponse,
     DepartmentResponse,
     DiseaseDetailResponse,
+    DiseaseEquipmentCategoryResponse,
     DiseaseResponse,
     EquipmentCategoryDetailResponse,
     EquipmentCategoryResponse,
     EquipmentSubcategoryDetailResponse,
     EquipmentSubcategoryResponse,
-    DiseaseEquipmentCategoryResponse,
-    HospitalTypeResponse,
     HospitalDetailResponse,
-    HospitalRecommendationRequest,
-    HospitalRecommendationResponse,
+    HospitalGeoResponse,
     HospitalRecommendationByDiseaseRequest,
     HospitalRecommendationByDiseaseResponse,
+    HospitalRecommendationRequest,
+    HospitalRecommendationResponse,
     HospitalResponse,
-    HospitalGeoResponse,
+    HospitalTypeResponse,
     MedicalEquipmentCategoryResponse,
     MedicalEquipmentSubcategoryResponse,
 )
 from app.services.hospital_recommendation_service import HospitalRecommendationService
 from app.services.medical_service import MedicalService
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import Session
 from sqlalchemy import func
-from app.models.hospital import HospitalEquipment
-from app.models.disease_equipment import DiseaseEquipmentCategory
+from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
@@ -227,10 +227,13 @@ def get_hospitals(
             detail="병원 정보를 가져오는 중 오류가 발생했습니다.",
         )
 
+
 # 정적 경로는 동적 경로보다 먼저 선언하여 라우팅 충돌 방지
 @router.get("/hospitals/by-equipment", response_model=List[HospitalResponse])
 def get_hospitals_by_equipment_early(
-    *, db: Session = Depends(get_db), category_id: int = Query(..., description="장비 대분류 ID")
+    *,
+    db: Session = Depends(get_db),
+    category_id: int = Query(..., description="장비 대분류 ID"),
 ):
     hospitals = MedicalService.get_hospitals_by_equipment_category(db, category_id)
     return [HospitalResponse.from_orm(h) for h in hospitals]
@@ -238,11 +241,18 @@ def get_hospitals_by_equipment_early(
 
 @router.get("/hospitals/by-type", response_model=List[HospitalResponse])
 def get_hospitals_by_type_early(
-    *, db: Session = Depends(get_db), type_code: Optional[str] = Query(None), type_name: Optional[str] = Query(None)
+    *,
+    db: Session = Depends(get_db),
+    type_code: Optional[str] = Query(None),
+    type_name: Optional[str] = Query(None),
 ):
     if not type_code and not type_name:
-        raise HTTPException(status_code=400, detail="type_code 또는 type_name 중 하나는 필요합니다.")
-    hospitals = MedicalService.get_hospitals_by_type(db, type_code=type_code, type_name=type_name)
+        raise HTTPException(
+            status_code=400, detail="type_code 또는 type_name 중 하나는 필요합니다."
+        )
+    hospitals = MedicalService.get_hospitals_by_type(
+        db, type_code=type_code, type_name=type_name
+    )
     return [HospitalResponse.from_orm(h) for h in hospitals]
 
 
@@ -456,7 +466,9 @@ def recommend_hospitals(
 # ===== 장비 관련 API 엔드포인트 =====
 
 
-@router.post("/recommend-by-disease", response_model=HospitalRecommendationByDiseaseResponse)
+@router.post(
+    "/recommend-by-disease", response_model=HospitalRecommendationByDiseaseResponse
+)
 def recommend_by_disease(
     *,
     db: Session = Depends(get_db),
@@ -495,17 +507,21 @@ def recommend_by_disease(
             )
 
         # 후보 병원 조회(진료과/거리 기준, 상급종합/요양/치과 제외)
-        candidates = HospitalRecommendationService.get_hospitals_by_disease_and_location(
-            db,
-            int(disease.id),
-            float(user.latitude),
-            float(user.longitude),
-            float(request_data.max_distance or 20.0),
+        candidates = (
+            HospitalRecommendationService.get_hospitals_by_disease_and_location(
+                db,
+                int(disease.id),
+                float(user.latitude),
+                float(user.longitude),
+                float(request_data.max_distance or 20.0),
+            )
         )
 
         # 필수 장비/병원 보유 장비 기반 점수 계산 (공란은 필수 없음 처리)
-        required_equipment = HospitalRecommendationService.get_required_equipment_for_disease(
-            db, int(disease.id)
+        required_equipment = (
+            HospitalRecommendationService.get_required_equipment_for_disease(
+                db, int(disease.id)
+            )
         )
 
         scored = []
@@ -526,19 +542,23 @@ def recommend_by_disease(
             specialist_count = HospitalRecommendationService.get_specialist_count_for_hospital_and_disease(
                 db, h.id, int(disease.id)
             )
-            score, reason, priority, breakdown = HospitalRecommendationService.calculate_recommendation_score(
-                getattr(h, "_calculated_distance", 0.0),
-                required_equipment,
-                he,
-                specialist_count,
-                h.hospital_type_name,
-                float(request_data.max_distance or 5.0),
+            score, reason, priority, breakdown = (
+                HospitalRecommendationService.calculate_recommendation_score(
+                    getattr(h, "_calculated_distance", 0.0),
+                    required_equipment,
+                    he,
+                    specialist_count,
+                    h.hospital_type_name,
+                    float(request_data.max_distance or 5.0),
+                )
             )
             # 병원별 필수 장비 상세(이름/코드/수량) - 필수 장비가 있을 때만 계산
             equipment_details = []
             if required_equipment:
-                equipment_details = HospitalRecommendationService.get_equipment_details_for_hospital(
-                    db, h.id, required_equipment
+                equipment_details = (
+                    HospitalRecommendationService.get_equipment_details_for_hospital(
+                        db, h.id, required_equipment
+                    )
                 )
             scored.append(
                 {
@@ -548,7 +568,9 @@ def recommend_by_disease(
                     "distance": getattr(h, "_calculated_distance", 0.0),
                     "department_match": True,
                     "equipment_match": (
-                        len(set(required_equipment) & set(he)) > 0 if required_equipment else True
+                        len(set(required_equipment) & set(he)) > 0
+                        if required_equipment
+                        else True
                     ),
                     "priority": priority,
                     "specialist_count": specialist_count,
@@ -582,6 +604,21 @@ def recommend_by_disease(
                 }
             )
 
+        # 병원 추천 결과 포맷팅
+        from app.services.ml_service import ml_client
+
+        formatted_message = ml_client.format_hospital_results(
+            {
+                "recommendations": recommendations,
+                "disease": {
+                    "id": int(disease.id),
+                    "name": disease.name,
+                    "description": getattr(disease, "description", ""),
+                },
+                "required_equipment": required_equipment or [],
+            }
+        )
+
         return {
             "chat_room_id": request_data.chat_room_id,
             "user_id": str(current_user.id),
@@ -600,6 +637,7 @@ def recommend_by_disease(
                 "limit": request_data.limit or 3,
             },
             "required_equipment": required_equipment or [],
+            "formatted_message": formatted_message,  # 추가: 포맷팅된 메시지
         }
 
     except HTTPException:
@@ -676,17 +714,20 @@ def get_equipment_category_detail(category_id: int, db: Session = Depends(get_db
         )
 
 
-
-
 @router.get("/disease-equipment", response_model=List[DiseaseEquipmentCategoryResponse])
 def list_disease_equipment(
-    *, db: Session = Depends(get_db), disease_id: Optional[int] = None, disease_name: Optional[str] = None
+    *,
+    db: Session = Depends(get_db),
+    disease_id: Optional[int] = None,
+    disease_name: Optional[str] = None,
 ):
     query = db.query(DiseaseEquipmentCategory)
     if disease_id:
         query = query.filter(DiseaseEquipmentCategory.disease_id == int(disease_id))
     if disease_name:
-        query = query.filter(DiseaseEquipmentCategory.disease_name.ilike(f"%{disease_name}%"))
+        query = query.filter(
+            DiseaseEquipmentCategory.disease_name.ilike(f"%{disease_name}%")
+        )
     rows = query.all()
     result = []
     for r in rows:

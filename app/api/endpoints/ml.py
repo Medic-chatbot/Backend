@@ -8,9 +8,8 @@ from typing import Optional
 from app.api.deps import get_current_user, get_db
 from app.models.user import User
 from app.services.ml_service import ml_client
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, status
 from pydantic import BaseModel
-from fastapi import Header
 from sqlalchemy.orm import Session
 
 # 로거 설정
@@ -31,9 +30,10 @@ class SymptomAnalysisResponse(BaseModel):
 
     original_text: str
     processed_text: str
-    disease_classifications: list
-    top_disease: str
-    confidence: float
+    disease_classifications: (
+        list  # [{"disease_id": str, "label": str, "score": float}, ...]
+    )
+    top_disease: dict  # {"disease_id": str, "label": str, "score": float}
     formatted_message: str
     user_id: str
     chat_room_id: Optional[int] = None
@@ -47,9 +47,31 @@ async def analyze_symptom(
     authorization: Optional[str] = Header(default=None),
 ):
     """
-    증상 텍스트 분석 API 엔드포인트
+    증상 텍스트 분석 API 엔드포인트 (채팅과 연동)
     """
     try:
+        # 채팅방이 지정된 경우 권한 확인
+        if request.chat_room_id:
+            from uuid import UUID
+
+            from app.services.chat_service import ChatService
+
+            user_uuid = UUID(str(current_user.id))
+            chat_room = ChatService.get_chat_room(db, request.chat_room_id)
+            if not chat_room or chat_room.user_id != user_uuid:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="해당 채팅방에 접근할 권한이 없습니다.",
+                )
+
+        # 채팅방이 지정된 경우 "분석 중" 메시지 저장
+        if request.chat_room_id:
+            from app.services.chat_service import ChatService
+
+            analyzing_message = ChatService.create_chat_message(
+                db, request.chat_room_id, "BOT", "분석 중입니다..."
+            )
+
         # ML 서비스 호출
         ml_result = await ml_client.analyze_symptom(
             text=request.text,
@@ -63,17 +85,41 @@ async def analyze_symptom(
                 detail="ML 서비스에 연결할 수 없습니다",
             )
 
-        # 결과 포맷팅
-        formatted_message = ml_client.format_disease_results(
-            {"symptom_analysis": ml_result}
+        # 채팅방이 지정된 경우 메시지 저장
+        if request.chat_room_id:
+            from app.services.chat_service import ChatService
+
+            # 사용자 메시지 저장
+            user_message = ChatService.create_chat_message(
+                db, request.chat_room_id, "USER", request.text
+            )
+
+            # 봇 응답 저장
+            formatted_message = ml_client.format_disease_results(
+                {"symptom_analysis": ml_result}
+            )
+            bot_message = ChatService.create_chat_message(
+                db, request.chat_room_id, "BOT", formatted_message
+            )
+        else:
+            # 결과 포맷팅만 수행
+            formatted_message = ml_client.format_disease_results(
+                {"symptom_analysis": ml_result}
+            )
+
+        # ML 결과에서 top_disease 추출
+        disease_classifications = ml_result.get("disease_classifications", [])
+        top_disease = (
+            disease_classifications[0]
+            if disease_classifications
+            else {"disease_id": None, "label": "알 수 없음", "score": 0.0}
         )
 
         return SymptomAnalysisResponse(
             original_text=ml_result.get("original_text", request.text),
             processed_text=ml_result.get("processed_text", ""),
-            disease_classifications=ml_result.get("disease_classifications", []),
-            top_disease=ml_result.get("top_disease", "알 수 없음"),
-            confidence=ml_result.get("confidence", 0.0),
+            disease_classifications=disease_classifications,
+            top_disease=top_disease,
             formatted_message=formatted_message,
             user_id=str(current_user.id),
             chat_room_id=request.chat_room_id,
