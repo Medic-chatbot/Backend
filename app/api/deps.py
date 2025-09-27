@@ -49,6 +49,12 @@ def authenticate_user(db: Session, email: str, password: str) -> Optional[User]:
     user = db.query(User).filter(User.email == email).first()
     if not user:
         return None
-    if not verify_password(password, str(user.password_hash)):
+    try:
+        if not user.password_hash:
+            return None
+        if not verify_password(password, str(user.password_hash)):
+            return None
+    except Exception:
+        # 해시 형식 오류 등은 인증 실패로 취급
         return None
     return user

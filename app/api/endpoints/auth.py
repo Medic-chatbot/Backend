@@ -98,13 +98,36 @@ def login(
             )
 
         logger.debug(f"[Login] Found user: {user.email}")
-        logger.debug(f"[Login] Stored password hash: {user.password_hash}")
+        # 해시 원문 로그는 보안상 위험하므로 형식만 기록
+        try:
+            hash_preview = str(user.password_hash)[:7] if user.password_hash else None
+            logger.debug(f"[Login] Stored password hash preview: {hash_preview}…")
+        except Exception:
+            logger.debug("[Login] Stored password hash preview: <unreadable>")
 
         # 비밀번호 검증
         from app.core.security import verify_password
+        from passlib.exc import UnknownHashError, InvalidHash
 
-        if not verify_password(login_data.password, str(user.password_hash)):
-            logger.debug("[Login] Password verification failed")
+        try:
+            if not user.password_hash:
+                logger.warning("[Login] Empty password hash for user")
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="이메일 또는 비밀번호가 올바르지 않습니다.",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+
+            if not verify_password(login_data.password, str(user.password_hash)):
+                logger.debug("[Login] Password verification failed")
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="이메일 또는 비밀번호가 올바르지 않습니다.",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+        except (UnknownHashError, InvalidHash, ValueError) as ve:
+            # 잘못된/지원되지 않는 해시 형식으로 인한 검증 오류는 401로 처리
+            logger.warning(f"[Login] Invalid password hash format: {ve.__class__.__name__}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="이메일 또는 비밀번호가 올바르지 않습니다.",
@@ -138,8 +161,11 @@ def login(
 
         return {"access_token": access_token, "token_type": "bearer", "user": user_dict}
 
+    except HTTPException:
+        # 인증 실패 계열은 그대로 전파
+        raise
     except Exception as e:
-        logger.error(f"[Login] Error during login: {str(e)}")
+        logger.error(f"[Login] Error during login: {e.__class__.__name__}: {str(e)}")
         raise
 
 
