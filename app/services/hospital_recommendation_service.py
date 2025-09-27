@@ -4,13 +4,11 @@
 
 import logging
 import math
-from typing import List, Optional, Tuple, Dict, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 from app.models.department import Department, DepartmentDisease, HospitalDepartment
-from app.models.equipment import (
-    MedicalEquipmentCategory,
-)
 from app.models.disease_equipment import DiseaseEquipmentCategory
+from app.models.equipment import MedicalEquipmentCategory
 from app.models.hospital import Hospital, HospitalEquipment, HospitalRecommendation
 from app.models.medical import Disease
 from app.models.model_inference import ModelInferenceResult
@@ -109,7 +107,9 @@ class HospitalRecommendationService:
             matched_equipment = set(required_equipment) & set(hospital_equipment)
             matched_count = len(matched_equipment)
             matched_names = sorted(list(matched_equipment))
-            equipment_score = (matched_count / max(1, len(required_equipment))) * W_EQUIP
+            equipment_score = (
+                matched_count / max(1, len(required_equipment))
+            ) * W_EQUIP
             equipment_reason = (
                 f"필수장비 {matched_count}/{len(required_equipment)} 보유"
             )
@@ -127,7 +127,7 @@ class HospitalRecommendationService:
             sc_val = 0
         specialist_score = min(max(sc_val, 0), 100)
         # log1p 근사: 루트 기반 완만 상승 (전문의 9명≈30점 상한에 맞춤)
-        specialist_score = min((specialist_score ** 0.5) * (W_SPEC / 3.0), W_SPEC)
+        specialist_score = min((specialist_score**0.5) * (W_SPEC / 3.0), W_SPEC)
 
         # 3. 거리 점수 계산 (가중치 W_DIST)
         R = max_distance_km if max_distance_km and max_distance_km > 0 else 5.0
@@ -417,8 +417,15 @@ class HospitalRecommendationService:
             )
 
         # 7. 점수 + 우선순위 정렬 후 상위 병원 선택
-        scored_hospitals.sort(key=lambda x: (x["score"], x.get("priority", 0)), reverse=True)
-        top_hospitals = scored_hospitals[:limit]
+        scored_hospitals.sort(
+            key=lambda x: (x["score"], x.get("priority", 0)), reverse=True
+        )
+
+        # limit이 None이거나 0 이하일 경우 모든 병원 반환
+        if limit is None or limit <= 0:
+            top_hospitals = scored_hospitals
+        else:
+            top_hospitals = scored_hospitals[:limit]
 
         # 8. HospitalRecommendation 객체 생성
         recommendations = []

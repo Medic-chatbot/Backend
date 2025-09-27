@@ -219,68 +219,8 @@ async def send_message(
             db, room_id, "USER", message_data.content
         )
 
-        # ML 서비스를 통한 증상 분석
-        bot_content = "분석 중입니다..."
-
-        # 먼저 "분석 중" 메시지 저장
-        analyzing_message = ChatService.create_chat_message(
-            db, room_id, "BOT", bot_content
-        )
-
-        try:
-            # ML 서비스 호출
-            ml_result = await ml_client.analyze_symptom(message_data.content)
-
-            # ML 결과 처리
-            if ml_result and "disease_classifications" in ml_result:
-                diseases = ml_result["disease_classifications"]
-                if diseases:
-                    # 가장 높은 확률의 질병 선택
-                    top_disease = diseases[0]
-                    disease_id = top_disease.get("disease_id")
-                    confidence = top_disease.get("score", 0)  # score로 변경
-
-                    # 질병 정보 조회
-                    from app.models.medical import Disease
-
-                    disease = db.query(Disease).filter(Disease.id == disease_id).first()
-
-                    if disease:
-                        # 질병 정보를 포함한 봇 응답 생성
-                        bot_content = f"분석 결과: {disease.name} (신뢰도: {confidence:.1%})\n\n{disease.description}"
-
-                        # 병원 추천 결과 처리
-                        hospital_result = ml_result.get("hospital_recommendations")
-                        if hospital_result:
-                            from app.services.hospital_recommendation_service import (
-                                HospitalRecommendationService,
-                            )
-
-                            try:
-                                hospital_recommendations = (
-                                    HospitalRecommendationService.recommend_hospitals(
-                                        db, user_uuid, disease_id, limit=3
-                                    )
-                                )
-
-                                if hospital_recommendations:
-                                    hospital_names = [
-                                        h.name for h in hospital_recommendations
-                                    ]
-                                    bot_content += (
-                                        f"\n\n추천 병원: {', '.join(hospital_names)}"
-                                    )
-
-                            except Exception as e:
-                                logger.warning(f"병원 추천 영속화 실패(무시): {e}")
-                else:
-                    bot_content = "증상에 대해 더 자세히 알려주시면 보다 정확한 정보를 제공해드릴 수 있습니다."
-            else:
-                bot_content = "증상에 대해 더 자세히 알려주시면 보다 정확한 정보를 제공해드릴 수 있습니다."
-
-        except Exception as e:
-            logger.error(f"ML 분석 중 오류: {str(e)}")
-            bot_content = "증상에 대해 더 자세히 알려주시면 보다 정확한 정보를 제공해드릴 수 있습니다."
+        # 간단한 봇 응답 (프론트엔드에서 별도 API 호출하므로)
+        bot_content = "메시지를 받았습니다. 증상 분석을 위해 잠시만 기다려주세요."
 
         # 봇 메시지 저장
         bot_message = ChatService.create_chat_message(db, room_id, "BOT", bot_content)

@@ -25,6 +25,15 @@ class SymptomAnalysisRequest(BaseModel):
     chat_room_id: Optional[int] = None
 
 
+class SymptomAnalysisWithRetryRequest(BaseModel):
+    """재질문 포함 증상 분석 요청"""
+
+    text: str
+    chat_room_id: int  # 필수
+    max_retries: Optional[int] = 3  # 최대 재질문 횟수
+    retry_message: Optional[str] = "더 자세한 증상을 설명해주세요."
+
+
 class SymptomAnalysisResponse(BaseModel):
     """증상 분석 응답"""
 
@@ -36,6 +45,9 @@ class SymptomAnalysisResponse(BaseModel):
     top_disease: dict  # {"disease_id": str, "label": str, "score": float}
     user_id: str
     chat_room_id: Optional[int] = None
+    inference_result_id: Optional[int] = None  # 병원 추천을 위해 추가
+    confidence_threshold_met: Optional[bool] = None  # 임계치 달성 여부
+    confidence_threshold: Optional[float] = None  # 현재 임계치 값
 
 
 @router.post("/analyze-symptom", response_model=SymptomAnalysisResponse)
@@ -71,9 +83,29 @@ async def analyze_symptom(
                 db, request.chat_room_id, "BOT", "분석 중입니다..."
             )
 
-        # ML 서비스 호출
+        # 분석할 텍스트 결정 (채팅방 컨텍스트 포함)
+        analysis_text = request.text
+
+        if request.chat_room_id:
+            # 최근 사용자 메시지들을 가져와서 합치기
+            from app.services.chat_service import ChatService
+
+            recent_messages = ChatService.get_recent_user_messages(
+                db, request.chat_room_id, limit=5
+            )
+
+            if recent_messages:
+                # 기존 메시지들과 새 메시지 합치기
+                previous_texts = [
+                    msg.content
+                    for msg in recent_messages[:-1]  # 마지막 메시지(현재 메시지) 제외
+                ]
+                if previous_texts:
+                    analysis_text = " ".join(previous_texts) + " " + request.text
+
+        # ML 서비스 호출 (합친 텍스트로)
         ml_result = await ml_client.analyze_symptom(
-            text=request.text,
+            text=analysis_text,
             chat_room_id=request.chat_room_id,
             authorization=authorization,
         )
@@ -114,13 +146,84 @@ async def analyze_symptom(
             else {"disease_id": None, "label": "알 수 없음", "score": 0.0}
         )
 
+        # 임계치 확인 (DB 저장 전에 확인)
+        from app.core.config import settings
+
+        confidence_threshold = settings.RECOMMEND_CONFIDENCE_THRESHOLD
+        top_score = top_disease.get("score", 0.0)
+        confidence_threshold_met = top_score >= confidence_threshold
+
+        # 임계치 이하일 경우 증상 추가 요구 응답 (DB 저장 없음)
+        if not confidence_threshold_met:
+            return SymptomAnalysisResponse(
+                original_text=ml_result.get("original_text", analysis_text),
+                processed_text=ml_result.get("processed_text", ""),
+                disease_classifications=[],  # 빈 배열
+                top_disease={
+                    "label": "증상 추가 요구",
+                    "score": top_score,
+                },  # 특별한 응답
+                user_id=str(current_user.id),
+                chat_room_id=request.chat_room_id,
+                inference_result_id=None,  # 임계치 이하이므로 저장하지 않음
+                confidence_threshold_met=False,
+                confidence_threshold=confidence_threshold,
+            )
+
+        # 임계치 이상일 경우에만 DB 저장
+        from app.models.model_inference import ModelInferenceResult
+
+        inference_result = ModelInferenceResult(
+            user_id=current_user.id,
+            chat_room_id=request.chat_room_id,
+            chat_message_id=None,  # 채팅 메시지와 연결되지 않은 경우
+            input_text=analysis_text,  # 합친 텍스트 사용
+            processed_text=ml_result.get("processed_text", ""),
+            first_disease_id=None,  # 질병 ID는 나중에 매핑 필요
+            first_disease_score=top_disease.get("score", 0.0),
+            first_disease_label=top_disease.get("label"),
+            second_disease_id=None,
+            second_disease_score=(
+                disease_classifications[1].get("score", 0.0)
+                if len(disease_classifications) > 1
+                else None
+            ),
+            second_disease_label=(
+                disease_classifications[1].get("label")
+                if len(disease_classifications) > 1
+                else None
+            ),
+            third_disease_id=None,
+            third_disease_score=(
+                disease_classifications[2].get("score", 0.0)
+                if len(disease_classifications) > 2
+                else None
+            ),
+            third_disease_label=(
+                disease_classifications[2].get("label")
+                if len(disease_classifications) > 2
+                else None
+            ),
+        )
+        db.add(inference_result)
+        db.commit()
+        db.refresh(inference_result)
+
+        logger.info(
+            f"추론 결과 저장 완료 - ID: {inference_result.id}, 질병: {top_disease.get('label')}"
+        )
+
+        # 임계치 이상일 경우 정상 응답
         return SymptomAnalysisResponse(
-            original_text=ml_result.get("original_text", request.text),
+            original_text=ml_result.get("original_text", analysis_text),
             processed_text=ml_result.get("processed_text", ""),
             disease_classifications=disease_classifications,
             top_disease=top_disease,
             user_id=str(current_user.id),
             chat_room_id=request.chat_room_id,
+            inference_result_id=inference_result.id,  # 병원 추천을 위해 추가
+            confidence_threshold_met=True,
+            confidence_threshold=confidence_threshold,
         )
 
     except HTTPException:
@@ -156,6 +259,59 @@ async def get_full_analysis(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="ML 서비스에 연결할 수 없습니다",
             )
+
+        # 추론 결과를 DB에 저장
+        import json
+
+        from app.models.model_inference import ModelInferenceResult
+
+        symptom_analysis = ml_result.get("symptom_analysis", {})
+        disease_classifications = symptom_analysis.get("disease_classifications", [])
+        top_disease = (
+            disease_classifications[0]
+            if disease_classifications
+            else {"label": "알 수 없음", "score": 0.0}
+        )
+
+        inference_result = ModelInferenceResult(
+            user_id=current_user.id,
+            chat_room_id=request.chat_room_id,
+            chat_message_id=None,  # 채팅 메시지와 연결되지 않은 경우
+            input_text=request.text,
+            processed_text=symptom_analysis.get("processed_text", ""),
+            first_disease_id=None,  # 질병 ID는 나중에 매핑 필요
+            first_disease_score=top_disease.get("score", 0.0),
+            first_disease_label=top_disease.get("label"),
+            second_disease_id=None,
+            second_disease_score=(
+                disease_classifications[1].get("score", 0.0)
+                if len(disease_classifications) > 1
+                else None
+            ),
+            second_disease_label=(
+                disease_classifications[1].get("label")
+                if len(disease_classifications) > 1
+                else None
+            ),
+            third_disease_id=None,
+            third_disease_score=(
+                disease_classifications[2].get("score", 0.0)
+                if len(disease_classifications) > 2
+                else None
+            ),
+            third_disease_label=(
+                disease_classifications[2].get("label")
+                if len(disease_classifications) > 2
+                else None
+            ),
+        )
+        db.add(inference_result)
+        db.commit()
+        db.refresh(inference_result)
+
+        logger.info(
+            f"전체 분석 추론 결과 저장 완료 - ID: {inference_result.id}, 질병: {top_disease.get('label')}"
+        )
 
         # user_id를 최상위에 포함하여 반환 (프론트 요구사항 반영)
         if isinstance(ml_result, dict):

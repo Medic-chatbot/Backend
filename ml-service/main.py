@@ -11,9 +11,9 @@ from typing import Any, Dict, List, Optional
 
 import httpx
 import torch
-from fastapi import FastAPI, HTTPException, APIRouter
-from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi import APIRouter, FastAPI, HTTPException
 from fastapi.openapi.docs import get_swagger_ui_html
+from fastapi.responses import HTMLResponse, JSONResponse
 from konlpy.tag import Kkma
 from pydantic import BaseModel
 from transformers import AutoModelForSequenceClassification, AutoTokenizer, pipeline
@@ -38,7 +38,9 @@ DEVICE = (
 )
 API_SERVICE_URL = os.getenv("API_SERVICE_URL", "http://localhost:8000")
 # 추천 트리거 임계치/기본 limit 환경변수
-RECOMMEND_CONFIDENCE_THRESHOLD = float(os.getenv("RECOMMEND_CONFIDENCE_THRESHOLD", "0.8"))
+RECOMMEND_CONFIDENCE_THRESHOLD = float(
+    os.getenv("RECOMMEND_CONFIDENCE_THRESHOLD", "0.8")
+)
 DEFAULT_RECOMMEND_LIMIT = int(os.getenv("RECOMMEND_LIMIT", "3"))
 
 # 전역 변수로 모델과 분석기 저장
@@ -191,6 +193,7 @@ async def load_model():
 
 router = APIRouter()
 
+
 @router.get("/health", response_model=HealthResponse)
 async def health_check():
     """헬스체크 엔드포인트"""
@@ -242,7 +245,9 @@ async def analyze_symptom(request: SymptomRequest):
             for pred in pred_iter:
                 if isinstance(pred, dict) and "label" in pred and "score" in pred:
                     disease_classifications.append(
-                        DiseaseClassification(label=str(pred["label"]), score=float(pred["score"]))
+                        DiseaseClassification(
+                            label=str(pred["label"]), score=float(pred["score"])
+                        )
                     )
         except Exception as _:
             logger.warning("예측 결과 파싱 중 포맷 이슈 발생, 빈 결과로 처리")
@@ -277,26 +282,26 @@ async def analyze_symptom(request: SymptomRequest):
 
 
 async def _call_recommend_hospitals(
-    disease_name: str,
+    inference_result_id: int,
     chat_room_id: int,
     authorization: Optional[str],
     max_distance: Optional[float] = 5.0,
     limit: Optional[int] = 3,
 ):
-    """내부 헬퍼: API 라이트 병원 추천 호출"""
+    """내부 헬퍼: API 병원 추천 호출"""
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             headers = {"Content-Type": "application/json"}
             if authorization:
                 headers["Authorization"] = authorization
             payload = {
-                "disease_name": disease_name,
+                "inference_result_id": inference_result_id,
                 "chat_room_id": chat_room_id,
                 "max_distance": max_distance or 5.0,
                 "limit": limit or 3,
             }
             response = await client.post(
-                f"{API_SERVICE_URL}/api/medical/recommend-by-disease",
+                f"{API_SERVICE_URL}/api/medical/recommend-hospitals",
                 json=payload,
                 headers=headers,
             )
@@ -313,7 +318,9 @@ from fastapi import Header
 
 
 @router.post("/full-analysis")
-async def full_analysis(request: SymptomRequest, authorization: Optional[str] = Header(default=None)):
+async def full_analysis(
+    request: SymptomRequest, authorization: Optional[str] = Header(default=None)
+):
     """
     완전한 분석: 증상 분석 + (임계치 기반) 병원 추천
 
@@ -322,8 +329,30 @@ async def full_analysis(request: SymptomRequest, authorization: Optional[str] = 
       병원 추천 API를 호출하여 결과를 포함
     """
     try:
-        # 1. 증상 분석
+        # 1. 증상 분석 (API 서비스 호출로 inference_result_id 획득)
         symptom_result = await analyze_symptom(request)
+
+        # API 서비스를 통해 증상 분석 수행 (inference_result_id 포함)
+        api_analysis_result = None
+        if request.chat_room_id and authorization:
+            try:
+                async with httpx.AsyncClient(timeout=30.0) as client:
+                    headers = {"Content-Type": "application/json"}
+                    if authorization:
+                        headers["Authorization"] = authorization
+                    payload = {
+                        "text": request.text,
+                        "chat_room_id": request.chat_room_id,
+                    }
+                    response = await client.post(
+                        f"{API_SERVICE_URL}/api/ml/analyze-symptom",
+                        json=payload,
+                        headers=headers,
+                    )
+                    if response.status_code == 200:
+                        api_analysis_result = response.json()
+            except Exception as e:
+                logger.warning(f"API 서비스 증상 분석 호출 실패: {e}")
 
         # 2. 임계치 기반 병원 추천
         hospital_result = None
@@ -333,9 +362,16 @@ async def full_analysis(request: SymptomRequest, authorization: Optional[str] = 
             confidence = 0.0
 
         threshold = RECOMMEND_CONFIDENCE_THRESHOLD
-        if confidence >= threshold and request.chat_room_id and getattr(symptom_result, "top_disease", None) and authorization:
+        if (
+            confidence >= threshold
+            and request.chat_room_id
+            and getattr(symptom_result, "top_disease", None)
+            and authorization
+            and api_analysis_result
+            and api_analysis_result.get("inference_result_id")
+        ):
             hospital_result = await _call_recommend_hospitals(
-                symptom_result.top_disease,
+                api_analysis_result["inference_result_id"],
                 request.chat_room_id,
                 authorization,
                 request.max_distance,
@@ -376,7 +412,9 @@ class DevTextRequest(BaseModel):
 async def dev_morph_only(req: DevTextRequest):
     """형태소 분석기 결과만 반환 (개발자용)"""
     if morph_analyzer is None:
-        raise HTTPException(status_code=503, detail="형태소 분석기가 아직 로드되지 않았습니다")
+        raise HTTPException(
+            status_code=503, detail="형태소 분석기가 아직 로드되지 않았습니다"
+        )
     try:
         pos = morph_analyzer.analyzer.pos(req.text)
         stems = morph_analyzer.extract_stems(req.text, min_length=1, include_pos=False)
@@ -396,7 +434,9 @@ async def dev_morph_only(req: DevTextRequest):
 async def dev_analyze_with_morph(req: DevTextRequest):
     """형태소 분석 + 모델 예측 결과 반환 (개발자용)"""
     if pipeline_model is None or morph_analyzer is None:
-        raise HTTPException(status_code=503, detail="모델 또는 분석기가 아직 로드되지 않았습니다")
+        raise HTTPException(
+            status_code=503, detail="모델 또는 분석기가 아직 로드되지 않았습니다"
+        )
     try:
         pos = morph_analyzer.analyzer.pos(req.text)
         processed = morph_analyzer.extract_morphs_for_model(req.text)
@@ -426,13 +466,16 @@ async def dev_analyze_with_morph(req: DevTextRequest):
         logger.error(f"analyze-with-morph 오류: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
 # 개발자용 라우터는 /ml 하위에만 노출
 app.include_router(dev_router, prefix="/ml/dev")
+
 
 # Docs under /ml as well
 @app.get("/ml/openapi.json", include_in_schema=False)
 async def ml_openapi():
     return JSONResponse(app.openapi())
+
 
 @app.get("/ml/docs", response_class=HTMLResponse, include_in_schema=False)
 async def ml_docs():
@@ -441,6 +484,8 @@ async def ml_docs():
         title="Medic AI Service (ML) - Docs",
     )
 
+
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8001)
