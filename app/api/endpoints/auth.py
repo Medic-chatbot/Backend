@@ -107,7 +107,7 @@ def login(
 
         # 비밀번호 검증
         from app.core.security import verify_password
-        from passlib.exc import UnknownHashError, InvalidHash
+        from passlib.exc import UnknownHashError
 
         try:
             if not user.password_hash:
@@ -125,9 +125,11 @@ def login(
                     detail="이메일 또는 비밀번호가 올바르지 않습니다.",
                     headers={"WWW-Authenticate": "Bearer"},
                 )
-        except (UnknownHashError, InvalidHash, ValueError) as ve:
+        except (UnknownHashError, ValueError) as ve:
             # 잘못된/지원되지 않는 해시 형식으로 인한 검증 오류는 401로 처리
-            logger.warning(f"[Login] Invalid password hash format: {ve.__class__.__name__}")
+            logger.warning(
+                f"[Login] Invalid password hash format: {ve.__class__.__name__}"
+            )
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="이메일 또는 비밀번호가 올바르지 않습니다.",

@@ -34,7 +34,6 @@ class SymptomAnalysisResponse(BaseModel):
         list  # [{"disease_id": str, "label": str, "score": float}, ...]
     )
     top_disease: dict  # {"disease_id": str, "label": str, "score": float}
-    formatted_message: str
     user_id: str
     chat_room_id: Optional[int] = None
 

@@ -347,6 +347,29 @@ def list_hospitals_geo(
         )
 
 
+# 최대 기여 점수 계산 함수
+def get_top_contributor(score_breakdown: dict) -> dict:
+    """점수 분석에서 최대 기여 항목을 찾아 반환"""
+    if not score_breakdown:
+        return {"name": "없음", "score": 0.0}
+
+    scores = [
+        {"name": "장비", "score": score_breakdown.get("equipment_score", 0)},
+        {"name": "전문의", "score": score_breakdown.get("specialist_score", 0)},
+        {"name": "거리", "score": score_breakdown.get("distance_score", 0)},
+    ]
+
+    # 최대 점수를 가진 항목 찾기
+    top_score = max(scores, key=lambda x: x["score"])
+    return {
+        "name": top_score["name"],
+        "score": top_score["score"],
+        "weight": score_breakdown.get("weights", {}).get(
+            {"장비": "equip", "전문의": "spec", "거리": "dist"}[top_score["name"]], 0
+        ),
+    }
+
+
 # ===== 병원 추천 엔드포인트 =====
 
 
@@ -601,23 +624,12 @@ def recommend_by_disease(
                     "specialist_count": item.get("specialist_count", 0),
                     "equipment_details": item.get("equipment_details", []),
                     "score_breakdown": item.get("score_breakdown", {}),
+                    # 최대 기여 점수 계산 및 추가
+                    "top_contributor": get_top_contributor(
+                        item.get("score_breakdown", {})
+                    ),
                 }
             )
-
-        # 병원 추천 결과 포맷팅
-        from app.services.ml_service import ml_client
-
-        formatted_message = ml_client.format_hospital_results(
-            {
-                "recommendations": recommendations,
-                "disease": {
-                    "id": int(disease.id),
-                    "name": disease.name,
-                    "description": getattr(disease, "description", ""),
-                },
-                "required_equipment": required_equipment or [],
-            }
-        )
 
         return {
             "chat_room_id": request_data.chat_room_id,
@@ -637,7 +649,6 @@ def recommend_by_disease(
                 "limit": request_data.limit or 3,
             },
             "required_equipment": required_equipment or [],
-            "formatted_message": formatted_message,  # 추가: 포맷팅된 메시지
         }
 
     except HTTPException:
