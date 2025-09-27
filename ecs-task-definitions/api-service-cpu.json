@@ -64,7 +64,7 @@
         },
         {
           "name": "ML_SERVICE_URL",
-          "value": "${ML_SERVICE_URL}"
+          "value": "https://medic.yoon.today/ml"
         },
         {
           "name": "SECRET_KEY",
