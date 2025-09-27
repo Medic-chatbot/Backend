@@ -3,6 +3,7 @@
 """
 
 import logging
+from datetime import datetime
 from typing import Any, List, Optional
 
 from app.api.deps import get_current_user, get_db
@@ -347,28 +348,29 @@ def list_hospitals_geo(
         )
 
 
-# 최대 기여 점수 계산 함수
-def get_top_contributor(score_breakdown: dict) -> dict:
-    """점수 분석에서 최대 기여 항목을 찾아 반환"""
-    if not score_breakdown:
-        return {"name": "없음", "score": 0.0}
-
-    scores = [
-        {"name": "장비", "score": score_breakdown.get("equipment_score", 0)},
-        {"name": "전문의", "score": score_breakdown.get("specialist_score", 0)},
-        {"name": "거리", "score": score_breakdown.get("distance_score", 0)},
-    ]
-
-    # 최대 점수를 가진 항목 찾기
-    top_score = max(scores, key=lambda x: x["score"])
-    return {
-        "name": top_score["name"],
-        "score": top_score["score"],
-        "weight": score_breakdown.get("weights", {}).get(
-            {"장비": "equip", "전문의": "spec", "거리": "dist"}[top_score["name"]], 0
-        ),
-    }
-
+# [Deprecated] 질병명 기반 병원 추천 API는 /api/medical/recommend-hospitals로 통합
+# # 최대 기여 점수 계산 함수
+# def get_top_contributor(score_breakdown: dict) -> dict:
+#     """점수 분석에서 최대 기여 항목을 찾아 반환"""
+#     if not score_breakdown:
+#         return {"name": "없음", "score": 0.0}
+#
+#     scores = [
+#         {"name": "장비", "score": score_breakdown.get("equipment_score", 0)},
+#         {"name": "전문의", "score": score_breakdown.get("specialist_score", 0)},
+#         {"name": "거리", "score": score_breakdown.get("distance_score", 0)},
+#     ]
+#
+#     # 최대 점수를 가진 항목 찾기
+#     top_score = max(scores, key=lambda x: x["score"])
+#     return {
+#         "name": top_score["name"],
+#         "score": top_score["score"],
+#         "weight": score_breakdown.get("weights", {}).get(
+#             {"장비": "equip", "전문의": "spec", "거리": "dist"}[top_score["name"]], 0
+#         ),
+#     }
+#
 
 # ===== 병원 추천 엔드포인트 =====
 
@@ -489,176 +491,205 @@ def recommend_hospitals(
 # ===== 장비 관련 API 엔드포인트 =====
 
 
-@router.post(
-    "/recommend-by-disease", response_model=HospitalRecommendationByDiseaseResponse
-)
-def recommend_by_disease(
-    *,
-    db: Session = Depends(get_db),
-    request_data: HospitalRecommendationByDiseaseRequest,
-    current_user: User = Depends(get_current_user),
-) -> Any:
-    """
-    질환명 + 사용자 위치 기반의 라이트 병원 추천
-
-    - inference_result_id 없이도 추천 가능하도록 설계
-    - 병원 추천 결과는 DB에 저장하지 않고 계산 결과만 응답
-    """
-    try:
-        # 사용자 조회 및 위치 확인 (토큰 기반)
-        from app.models.user import User
-
-        user = db.query(User).filter(User.id == current_user.id).first()
-        if not user or user.latitude is None or user.longitude is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="사용자 위치 정보가 없습니다.",
-            )
-
-        # 질환명 → 질환 레코드 조회
-        from app.models.medical import Disease
-
-        disease = (
-            db.query(Disease)
-            .filter(Disease.name.ilike(f"%{request_data.disease_name}%"))
-            .first()
-        )
-        if not disease:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="해당 질환을 찾을 수 없습니다.",
-            )
-
-        # 후보 병원 조회(진료과/거리 기준, 상급종합/요양/치과 제외)
-        candidates = (
-            HospitalRecommendationService.get_hospitals_by_disease_and_location(
-                db,
-                int(disease.id),
-                float(user.latitude),
-                float(user.longitude),
-                float(request_data.max_distance or 20.0),
-            )
-        )
-
-        # 필수 장비/병원 보유 장비 기반 점수 계산 (공란은 필수 없음 처리)
-        required_equipment = (
-            HospitalRecommendationService.get_required_equipment_for_disease(
-                db, int(disease.id)
-            )
-        )
-
-        scored = []
-        # 로그: 추천 요청 컨텍스트
-        logger.info(
-            {
-                "tag": "recommend_request",
-                "user_id": str(current_user.id),
-                "disease_id": int(disease.id),
-                "radius_km": float(request_data.max_distance or 5.0),
-                "limit": int(request_data.limit or 3),
-                "candidates": len(candidates),
-            }
-        )
-
-        for h in candidates:
-            he = HospitalRecommendationService.get_hospital_equipment(db, h.id)
-            specialist_count = HospitalRecommendationService.get_specialist_count_for_hospital_and_disease(
-                db, h.id, int(disease.id)
-            )
-            score, reason, priority, breakdown = (
-                HospitalRecommendationService.calculate_recommendation_score(
-                    getattr(h, "_calculated_distance", 0.0),
-                    required_equipment,
-                    he,
-                    specialist_count,
-                    h.hospital_type_name,
-                    float(request_data.max_distance or 5.0),
-                )
-            )
-            # 병원별 필수 장비 상세(이름/코드/수량) - 필수 장비가 있을 때만 계산
-            equipment_details = []
-            if required_equipment:
-                equipment_details = (
-                    HospitalRecommendationService.get_equipment_details_for_hospital(
-                        db, h.id, required_equipment
-                    )
-                )
-            scored.append(
-                {
-                    "hospital": h,
-                    "score": score,
-                    "reason": reason,
-                    "distance": getattr(h, "_calculated_distance", 0.0),
-                    "department_match": True,
-                    "equipment_match": (
-                        len(set(required_equipment) & set(he)) > 0
-                        if required_equipment
-                        else True
-                    ),
-                    "priority": priority,
-                    "specialist_count": specialist_count,
-                    "equipment_details": equipment_details,
-                    "score_breakdown": breakdown,
-                }
-            )
-
-        scored.sort(key=lambda x: (x["score"], x.get("priority", 0)), reverse=True)
-        top = scored[: int(request_data.limit or 3)]
-
-        recommendations = []
-        for rank, item in enumerate(top, 1):
-            h = item["hospital"]
-            recommendations.append(
-                {
-                    "id": h.id,
-                    "name": h.name,
-                    "address": h.address,
-                    "hospital_type_name": h.hospital_type_name,
-                    "phone": h.phone,
-                    "distance": item["distance"],
-                    "rank": rank,
-                    "recommendation_score": item["score"],
-                    "department_match": item["department_match"],
-                    "equipment_match": item["equipment_match"],
-                    "recommended_reason": item["reason"],
-                    "specialist_count": item.get("specialist_count", 0),
-                    "equipment_details": item.get("equipment_details", []),
-                    "score_breakdown": item.get("score_breakdown", {}),
-                    # 최대 기여 점수 계산 및 추가
-                    "top_contributor": get_top_contributor(
-                        item.get("score_breakdown", {})
-                    ),
-                }
-            )
-
-        return {
-            "chat_room_id": request_data.chat_room_id,
-            "user_id": str(current_user.id),
-            "user_nickname": user.nickname or "",
-            "user_location": user.road_address or "",
-            "final_disease": {
-                "id": int(disease.id),
-                "name": disease.name,
-                "description": getattr(disease, "description", ""),
-                "created_at": getattr(disease, "created_at", None),
-            },
-            "total_candidates": len(candidates),
-            "recommendations": recommendations,
-            "search_criteria": {
-                "max_distance": request_data.max_distance or 5.0,
-                "limit": request_data.limit or 3,
-            },
-            "required_equipment": required_equipment or [],
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"recommend-by-disease error: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="병원 추천 처리 중 오류가 발생했습니다.",
-        )
+# [Deprecated] 질병명 기반 병원 추천 API는 /api/medical/recommend-hospitals로 통합
+# @router.post(
+#     "/recommend-by-disease", response_model=HospitalRecommendationByDiseaseResponse
+# )
+# def recommend_by_disease(
+#     *,
+#     db: Session = Depends(get_db),
+#     request_data: HospitalRecommendationByDiseaseRequest,
+#     current_user: User = Depends(get_current_user),
+# ) -> Any:
+#     """
+#     질환명 + 사용자 위치 기반의 라이트 병원 추천
+#
+#     - inference_result_id 없이도 추천 가능하도록 설계
+#     - 병원 추천 결과는 DB에 저장하지 않고 계산 결과만 응답
+#     """
+#     try:
+#         # 사용자 조회 및 위치 확인 (토큰 기반)
+#         from app.models.user import User
+#
+#         user = db.query(User).filter(User.id == current_user.id).first()
+#         if not user or user.latitude is None or user.longitude is None:
+#             raise HTTPException(
+#                 status_code=status.HTTP_400_BAD_REQUEST,
+#                 detail="사용자 위치 정보가 없습니다.",
+#             )
+#
+#         # 질병 ID로 질병 정보 조회
+#         from app.models.medical import Disease
+#
+#         disease = (
+#             db.query(Disease).filter(Disease.id == request_data.disease_id).first()
+#         )
+#         if not disease:
+#             raise HTTPException(
+#                 status_code=status.HTTP_404_NOT_FOUND,
+#                 detail="해당 질병을 찾을 수 없습니다.",
+#             )
+#
+#         # 후보 병원 조회(진료과/거리 기준, 상급종합/요양/치과 제외)
+#         candidates = (
+#             HospitalRecommendationService.get_hospitals_by_disease_and_location(
+#                 db,
+#                 int(disease.id),
+#                 float(user.latitude),
+#                 float(user.longitude),
+#                 float(request_data.max_distance or 20.0),
+#             )
+#         )
+#
+#         # 필수 장비/병원 보유 장비 기반 점수 계산 (공란은 필수 없음 처리)
+#         required_equipment = (
+#             HospitalRecommendationService.get_required_equipment_for_disease(
+#                 db, int(disease.id)
+#             )
+#         )
+#
+#         scored = []
+#         # 로그: 추천 요청 컨텍스트
+#         logger.info(
+#             {
+#                 "tag": "recommend_request",
+#                 "user_id": str(current_user.id),
+#                 "disease_id": int(disease.id),
+#                 "radius_km": float(request_data.max_distance or 5.0),
+#                 "limit": int(request_data.limit or 3),
+#                 "candidates": len(candidates),
+#             }
+#         )
+#
+#         for h in candidates:
+#             he = HospitalRecommendationService.get_hospital_equipment(db, h.id)
+#             specialist_count = HospitalRecommendationService.get_specialist_count_for_hospital_and_disease(
+#                 db, h.id, int(disease.id)
+#             )
+#             score, reason, priority, breakdown = (
+#                 HospitalRecommendationService.calculate_recommendation_score(
+#                     getattr(h, "_calculated_distance", 0.0),
+#                     required_equipment,
+#                     he,
+#                     specialist_count,
+#                     h.hospital_type_name,
+#                     float(request_data.max_distance or 5.0),
+#                 )
+#             )
+#             # 병원별 필수 장비 상세(이름/코드/수량) - 필수 장비가 있을 때만 계산
+#             equipment_details = []
+#             if required_equipment:
+#                 equipment_details = (
+#                     HospitalRecommendationService.get_equipment_details_for_hospital(
+#                         db, h.id, required_equipment
+#                     )
+#                 )
+#             scored.append(
+#                 {
+#                     "hospital": h,
+#                     "score": score,
+#                     "reason": reason,
+#                     "distance": getattr(h, "_calculated_distance", 0.0),
+#                     "department_match": True,
+#                     "equipment_match": (
+#                         len(set(required_equipment) & set(he)) > 0
+#                         if required_equipment
+#                         else True
+#                     ),
+#                     "priority": priority,
+#                     "specialist_count": specialist_count,
+#                     "equipment_details": equipment_details,
+#                     "score_breakdown": breakdown,
+#                 }
+#             )
+#
+#         scored.sort(key=lambda x: (x["score"], x.get("priority", 0)), reverse=True)
+#         top = scored[: int(request_data.limit or 3)]
+#
+#         recommendations = []
+#         for rank, item in enumerate(top, 1):
+#             h = item["hospital"]
+#             recommendations.append(
+#                 {
+#                     "id": h.id,
+#                     "name": h.name,
+#                     "address": h.address,
+#                     "hospital_type_name": h.hospital_type_name,
+#                     "phone": h.phone,
+#                     "distance": item["distance"],
+#                     "rank": rank,
+#                     "recommendation_score": item["score"],
+#                     "department_match": item["department_match"],
+#                     "equipment_match": item["equipment_match"],
+#                     "recommended_reason": item["reason"],
+#                     "specialist_count": item.get("specialist_count", 0),
+#                     "equipment_details": item.get("equipment_details", []),
+#                     "score_breakdown": item.get("score_breakdown", {}),
+#                     # 최대 기여 점수 계산 및 추가
+#                     "top_contributor": get_top_contributor(
+#                         item.get("score_breakdown", {})
+#                     ),
+#                 }
+#             )
+#
+#         # 추천 결과를 DB에 저장 (웹소켓 로직과 동일)
+#         try:
+#             from app.services.chat_service import ChatService
+#
+#             # 질병 정보를 포함한 봇 응답 생성
+#             confidence = (
+#                 recommendations[0]["recommendation_score"] if recommendations else 0
+#             )
+#             bot_content = f"분석 결과: {disease.name} (신뢰도: {confidence:.1%})\n\n{disease.description}"
+#
+#             # 병원 추천 결과 추가
+#             if recommendations:
+#                 hospital_names = [h["name"] for h in recommendations]
+#                 bot_content += f"\n\n추천 병원: {', '.join(hospital_names)}"
+#
+#             # 봇 메시지 저장
+#             bot_message = ChatService.create_chat_message(
+#                 db, request_data.chat_room_id, "BOT", bot_content
+#             )
+#
+#             # 채팅방 질병 정보 업데이트
+#             chat_room = ChatService.get_chat_room(db, request_data.chat_room_id)
+#             if chat_room:
+#                 chat_room.final_disease_id = disease.id
+#                 db.commit()
+#
+#         except Exception as e:
+#             logger.warning(f"채팅 메시지 저장 실패(무시): {e}")
+#
+#         # 웹소켓 형식의 응답 반환
+#         return {
+#             "type": "bot_message",
+#             "message": {
+#                 "id": bot_message.id if "bot_message" in locals() else None,
+#                 "content": bot_content,
+#                 "message_type": "BOT",
+#                 "created_at": datetime.now().isoformat(),
+#             },
+#             "room_id": request_data.chat_room_id,
+#             "timestamp": datetime.now().isoformat(),
+#             # 추가 정보 (프론트엔드 호환성)
+#             "recommendations": recommendations,
+#             "final_disease": {
+#                 "id": int(disease.id),
+#                 "name": disease.name,
+#                 "description": getattr(disease, "description", ""),
+#             },
+#             "required_equipment": required_equipment or [],
+#         }
+#
+#     except HTTPException:
+#         raise
+#     except Exception as e:
+#         logger.error(f"recommend-by-disease error: {str(e)}", exc_info=True)
+#         raise HTTPException(
+#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+#             detail="병원 추천 처리 중 오류가 발생했습니다.",
+#         )
 
 
 @router.get("/equipment/categories", response_model=List[EquipmentCategoryResponse])

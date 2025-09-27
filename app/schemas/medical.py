@@ -139,6 +139,7 @@ class HospitalTypeResponse(BaseModel):
     id: int
     code: str
     name: str
+
     class Config:
         from_attributes = True
 
@@ -292,6 +293,7 @@ class DiseaseEquipmentCategoryResponse(BaseModel):
     disease: Dict[str, Any]
     equipment_category: Dict[str, Any]
     source: Optional[str] = None
+
     class Config:
         from_attributes = True
 
@@ -407,13 +409,13 @@ class HospitalRecommendationResponse(BaseModel):
 
 
 class HospitalRecommendationByDiseaseRequest(BaseModel):
-    """질환명 기반 병원 추천(라이트) 요청
+    """질병 ID 기반 병원 추천 요청
 
     - 사용자 식별은 토큰 기반(current_user)으로 수행
-    - 요청 바디에서는 user_id 제거
+    - 웹소켓 로직과 동일한 처리를 위해 DB 저장 포함
     """
 
-    disease_name: str = Field(..., description="질환명")
+    disease_id: int = Field(..., description="질병 ID")
     chat_room_id: int = Field(..., description="채팅방 ID")
     max_distance: Optional[float] = Field(20.0, description="최대 검색 거리 (km)")
     limit: Optional[int] = Field(3, description="추천 병원 수")
