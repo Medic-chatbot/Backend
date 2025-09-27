@@ -13,16 +13,14 @@ class Settings(BaseSettings):
     # 기본 설정
     PROJECT_NAME: str = "Medical Chatbot API"
     VERSION: str = "1.0.0"
-    DEBUG: bool = True  # 모든 로그 출력
+    DEBUG: bool = True  # 모든 로그 출력 (개발/디버깅용)
 
-
-
-    # 데이터베이스 설정 (환경변수에서 로딩, 기본값은 로컬 개발용)
-    DB_HOST: str = "localhost"
-    DB_PORT: int = 5432
-    DB_NAME: str = "medic_db"
-    DB_USER: str = "user"
-    DB_PASSWORD: str = "password"
+    # 데이터베이스 설정 (환경변수에서 로딩)
+    DB_HOST: str = ""  # .env에서 로드
+    DB_PORT: int = 5432  # .env에서 로드
+    DB_NAME: str = ""  # .env에서 로드
+    DB_USER: str = ""  # .env에서 로드
+    DB_PASSWORD: str = ""  # .env에서 로드
 
     @property
     def DATABASE_URL(self) -> str:
@@ -33,14 +31,12 @@ class Settings(BaseSettings):
     REDIS_URL: Optional[str] = None
 
     # JWT 설정
-    SECRET_KEY: str = "prod-secret-key"
+    SECRET_KEY: str = ""  # .env에서 로드
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 10080  # 7일 (7 * 24 * 60 = 10080분)
 
     # CORS 설정 (환경변수에서 로딩, 콤마로 구분)
-    ALLOWED_HOSTS_STRING: str = (
-        "http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000,http://127.0.0.1:5173,http://medic.yoon.today,https://medic.yoon.today"
-    )
+    ALLOWED_HOSTS_STRING: str = ""  # .env에서 로드
 
     @property
     def ALLOWED_HOSTS(self) -> list:
@@ -49,14 +45,14 @@ class Settings(BaseSettings):
         return [host.strip() for host in hosts if host.strip()]
 
     # 서비스 URL 설정 (환경변수에서 로딩)
-    ML_SERVICE_URL: str = "http://ml-service:8001"  # Docker Compose 로컬용
-    API_SERVICE_URL: str = "http://localhost:8000"  # 로컬 개발용
-    ALB_HOST: str = "medic.yoon.today"  # 프로덕션 ALB 주소
+    ML_SERVICE_URL: str = ""  # .env에서 로드
+    API_SERVICE_URL: str = ""  # .env에서 로드
+    ALB_HOST: str = ""  # .env에서 로드
 
     # 추천 관련 공통 설정(로깅/분기 통일성)
-    RECOMMEND_CONFIDENCE_THRESHOLD: float = 0.8
-    RECOMMEND_LIMIT: int = 3
-    SYMPTOM_HISTORY_UTTERANCES: int = 5
+    RECOMMEND_CONFIDENCE_THRESHOLD: float = 0.8  # .env에서 로드
+    RECOMMEND_LIMIT: int = 3  # .env에서 로드
+    SYMPTOM_HISTORY_UTTERANCES: int = 5  # .env에서 로드
 
     @property
     def ML_SERVICE_URL_ALB(self) -> str:
