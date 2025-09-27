@@ -45,7 +45,7 @@ class Settings(BaseSettings):
         return [host.strip() for host in hosts if host.strip()]
 
     # 서비스 URL 설정 (환경변수에서 로딩)
-    ML_SERVICE_URL: str = ""  # .env에서 로드
+    ML_SERVICE_URL: str = "http://ml-service:8001"  # 내부 서비스 직접 통신
     API_SERVICE_URL: str = ""  # .env에서 로드
     ALB_HOST: str = ""  # .env에서 로드
 
