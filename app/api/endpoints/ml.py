@@ -119,7 +119,6 @@ async def analyze_symptom(
             processed_text=ml_result.get("processed_text", ""),
             disease_classifications=disease_classifications,
             top_disease=top_disease,
-            formatted_message=formatted_message,
             user_id=str(current_user.id),
             chat_room_id=request.chat_room_id,
         )
