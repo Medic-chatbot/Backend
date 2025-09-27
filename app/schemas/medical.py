@@ -361,9 +361,10 @@ class HospitalRecommendationRequest(BaseModel):
 
     inference_result_id: int = Field(..., description="모델 추론 결과 ID")
     chat_room_id: int = Field(..., description="채팅방 ID")
-    user_id: str = Field(..., description="사용자 ID (UUID)")
     max_distance: Optional[float] = Field(5.0, description="최대 검색 거리 (km)")
-    limit: Optional[int] = Field(3, description="추천 병원 수")
+    limit: Optional[int] = Field(
+        None, description="추천 병원 수 (None일 경우 모든 병원 반환)"
+    )
 
 
 class RecommendedHospitalResponse(BaseModel):
@@ -406,36 +407,6 @@ class HospitalRecommendationResponse(BaseModel):
 
 
 # ===== 장비 관련 스키마 =====
-
-
-class HospitalRecommendationByDiseaseRequest(BaseModel):
-    """질병 ID 기반 병원 추천 요청
-
-    - 사용자 식별은 토큰 기반(current_user)으로 수행
-    - 웹소켓 로직과 동일한 처리를 위해 DB 저장 포함
-    """
-
-    disease_id: int = Field(..., description="질병 ID")
-    chat_room_id: int = Field(..., description="채팅방 ID")
-    max_distance: Optional[float] = Field(20.0, description="최대 검색 거리 (km)")
-    limit: Optional[int] = Field(3, description="추천 병원 수")
-
-
-class HospitalRecommendationByDiseaseResponse(BaseModel):
-    """질환명 기반 병원 추천(라이트) 응답"""
-
-    chat_room_id: int
-    user_id: str
-    user_nickname: str
-    user_location: str
-    final_disease: Dict[str, Any]
-    total_candidates: int
-    recommendations: List[RecommendedHospitalResponse]
-    search_criteria: Dict[str, Any]
-    required_equipment: Optional[List[str]] = None
-
-    class Config:
-        from_attributes = True
 
 
 class EquipmentCategoryBase(BaseModel):

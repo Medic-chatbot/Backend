@@ -106,6 +106,21 @@ class ChatService:
         )
 
     @staticmethod
+    def get_recent_user_messages(
+        db: Session, room_id: int, limit: int = 5
+    ) -> List[ChatMessage]:
+        """최근 사용자 메시지들 조회 (시간순 정렬)"""
+        return (
+            db.query(ChatMessage)
+            .filter(
+                ChatMessage.chat_room_id == room_id, ChatMessage.message_type == "USER"
+            )
+            .order_by(ChatMessage.created_at.desc())
+            .limit(limit)
+            .all()
+        )
+
+    @staticmethod
     def get_chat_messages(
         db: Session, room_id: int, limit: int = 50
     ) -> List[ChatMessage]:
