@@ -44,6 +44,7 @@ class ChatRoom(Base):
     user = relationship("User", back_populates="chat_rooms")
     messages = relationship("ChatMessage", back_populates="chat_room")
     final_disease = relationship("Disease", back_populates="chat_rooms")
+    inference_results = relationship("ModelInferenceResult", back_populates="chat_room")
     # 추천 컨텍스트 경계: 직전 추천을 유발한 USER 메시지 ID
     last_recommendation_message_id = Column(Integer, nullable=True)
 

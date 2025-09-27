@@ -50,3 +50,4 @@ class User(Base):
     hospital_recommendations = relationship(
         "HospitalRecommendation", back_populates="user"
     )
+    inference_results = relationship("ModelInferenceResult", back_populates="user")
