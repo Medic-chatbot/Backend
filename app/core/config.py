@@ -44,11 +44,10 @@ class Settings(BaseSettings):
         hosts = self.ALLOWED_HOSTS_STRING.split(",")
         return [host.strip() for host in hosts if host.strip()]
 
-    # 서비스 URL 설정 (환경변수에서 로딩)
-    ML_SERVICE_URL: str = "http://ml-service:8001"  # 내부 서비스 직접 통신
-    API_SERVICE_URL: str = "http://localhost:8000"  # .env에서 로드
-    ALB_HOST: str = ""  # .env에서 로드
 
+    ML_SERVICE_URL: str = "http://ml-service:8001"  
+    API_SERVICE_URL: str = "http://localhost:8000"  
+    ALB_HOST: str = ""  
     # 추천 관련 공통 설정(로깅/분기 통일성)
     RECOMMEND_CONFIDENCE_THRESHOLD: float = 0.8  # .env에서 로드
     RECOMMEND_LIMIT: int = 3  # .env에서 로드
