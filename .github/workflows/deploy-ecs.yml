@@ -98,7 +98,7 @@ jobs:
         DB_NAME: ${{ secrets.DB_NAME }}
         DB_USER: ${{ secrets.DB_USER }}
         DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-        # ML_SERVICE_URL: ${{ secrets.ML_SERVICE_URL }}  # 내부 서비스 직접 통신으로 변경
+        ML_SERVICE_URL: ${{ secrets.ML_SERVICE_URL }}  # 내부 서비스 직접 통신으로 변경
         SECRET_KEY: ${{ secrets.SECRET_KEY }}
         ACCESS_TOKEN_EXPIRE_MINUTES: ${{ secrets.ACCESS_TOKEN_EXPIRE_MINUTES }}
         ALB_HOST: ${{ secrets.ALB_HOST }}
