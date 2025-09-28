@@ -456,6 +456,178 @@ class HospitalRecommendationService:
         return recommendations
 
     @staticmethod
+    def get_user_recommendations(
+        db: Session,
+        user_id: str,
+        limit: int = 10,
+        offset: int = 0,
+    ) -> List[Dict]:
+        """
+        사용자의 모든 병원 추천 결과 조회
+
+        Args:
+            db: 데이터베이스 세션
+            user_id: 사용자 ID (UUID string)
+            limit: 조회할 추천 결과 수
+            offset: 조회 시작 위치
+
+        Returns:
+            List[Dict]: 추천 결과 리스트
+        """
+        from uuid import UUID
+
+        from app.models.medical import Disease
+
+        user_id_uuid = UUID(user_id)
+
+        # 사용자의 추천 결과 조회 (최신순)
+        recommendations = (
+            db.query(HospitalRecommendation)
+            .filter(HospitalRecommendation.user_id == user_id_uuid)
+            .order_by(HospitalRecommendation.created_at.desc())
+            .offset(offset)
+            .limit(limit)
+            .all()
+        )
+
+        if not recommendations:
+            return []
+
+        # 응답 데이터 구성
+        result = []
+        for rec in recommendations:
+            # 추론 결과에서 질병 정보 가져오기
+            disease_name = "알 수 없음"
+            if rec.inference_result and rec.inference_result.first_disease_id:
+                disease = (
+                    db.query(Disease)
+                    .filter(Disease.id == rec.inference_result.first_disease_id)
+                    .first()
+                )
+                if disease:
+                    disease_name = disease.name
+
+            result.append(
+                {
+                    "id": rec.id,
+                    "inference_result_id": rec.inference_result_id,
+                    "hospital_id": rec.hospital_id,
+                    "hospital_name": rec.hospital.name,
+                    "hospital_address": rec.hospital.address,
+                    "hospital_type_name": rec.hospital.hospital_type_name,
+                    "disease_name": disease_name,
+                    "distance": rec.distance,
+                    "rank": rec.rank,
+                    "recommendation_score": rec.recommendation_score,
+                    "department_match": rec.department_match,
+                    "equipment_match": rec.equipment_match,
+                    "recommended_reason": rec.recommended_reason,
+                    "created_at": rec.created_at,
+                }
+            )
+
+        return result
+
+    @staticmethod
+    def get_recommendations_by_inference(
+        db: Session,
+        inference_result_id: int,
+        user_id: str,
+        sort_by: Optional[str] = None,
+    ) -> List[Dict]:
+        """
+        특정 추론 결과의 병원 추천 결과 조회
+
+        Args:
+            db: 데이터베이스 세션
+            inference_result_id: 추론 결과 ID
+            user_id: 사용자 ID (UUID string)
+            sort_by: 정렬 기준 (None=점수순, distance=거리순, equipment=장비순, department=진료과순)
+
+        Returns:
+            List[Dict]: 추천 결과 리스트
+        """
+        from uuid import UUID
+
+        from app.models.medical import Disease
+
+        user_id_uuid = UUID(user_id)
+
+        # 추론 결과 존재 및 권한 확인
+        inference_result = (
+            db.query(ModelInferenceResult)
+            .filter(
+                ModelInferenceResult.id == inference_result_id,
+                ModelInferenceResult.user_id == user_id_uuid,
+            )
+            .first()
+        )
+
+        if not inference_result:
+            raise ValueError(
+                f"Inference result not found or access denied: {inference_result_id}"
+            )
+
+        # 정렬 기준 설정
+        if sort_by == "distance":
+            order_by = HospitalRecommendation.distance.asc()
+        elif sort_by == "equipment":
+            order_by = HospitalRecommendation.equipment_match.desc()
+        elif sort_by == "department":
+            order_by = HospitalRecommendation.department_match.desc()
+        else:  # None 또는 기타 → 점수순 (기본값)
+            order_by = HospitalRecommendation.rank.asc()
+
+        # 해당 추론 결과의 추천 결과 조회
+        recommendations = (
+            db.query(HospitalRecommendation)
+            .filter(
+                HospitalRecommendation.inference_result_id == inference_result_id,
+                HospitalRecommendation.user_id == user_id_uuid,
+            )
+            .order_by(order_by)
+            .all()
+        )
+
+        if not recommendations:
+            return []
+
+        # 질병 정보 가져오기
+        disease_name = "알 수 없음"
+        if inference_result.first_disease_id:
+            disease = (
+                db.query(Disease)
+                .filter(Disease.id == inference_result.first_disease_id)
+                .first()
+            )
+            if disease:
+                disease_name = disease.name
+
+        # 응답 데이터 구성
+        result = []
+        for rec in recommendations:
+            result.append(
+                {
+                    "id": rec.id,
+                    "inference_result_id": rec.inference_result_id,
+                    "hospital_id": rec.hospital_id,
+                    "hospital_name": rec.hospital.name,
+                    "hospital_address": rec.hospital.address,
+                    "hospital_type_name": rec.hospital.hospital_type_name,
+                    "disease_name": disease_name,
+                    "distance": rec.distance,
+                    "rank": rec.rank,
+                    "recommendation_score": rec.recommendation_score,
+                    "department_match": rec.department_match,
+                    "equipment_match": rec.equipment_match,
+                    "recommended_reason": rec.recommended_reason,
+                    "created_at": rec.created_at,
+                }
+            )
+
+        return result
+
+    @staticmethod
     def get_specialist_count_for_hospital_and_disease(
         db: Session, hospital_id: int, disease_id: int
     ) -> int:
