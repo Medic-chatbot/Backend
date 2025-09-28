@@ -83,6 +83,11 @@ async def analyze_symptom(
                 db, request.chat_room_id, "BOT", "분석 중입니다..."
             )
 
+            # 사용자 메시지 먼저 저장 (이전 메시지 조회를 위해)
+            user_message = ChatService.create_chat_message(
+                db, request.chat_room_id, "USER", request.text
+            )
+
         # 분석할 텍스트 결정 (채팅방 컨텍스트 포함)
         analysis_text = request.text
 
@@ -116,14 +121,9 @@ async def analyze_symptom(
                 detail="ML 서비스에 연결할 수 없습니다",
             )
 
-        # 채팅방이 지정된 경우 메시지 저장
+        # 채팅방이 지정된 경우 봇 응답 저장
         if request.chat_room_id:
             from app.services.chat_service import ChatService
-
-            # 사용자 메시지 저장
-            user_message = ChatService.create_chat_message(
-                db, request.chat_room_id, "USER", request.text
-            )
 
             # 봇 응답 저장
             formatted_message = ml_client.format_disease_results(
