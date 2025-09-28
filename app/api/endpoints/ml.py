@@ -103,7 +103,7 @@ async def analyze_symptom(
                 # 기존 메시지들과 새 메시지 합치기
                 previous_texts = [
                     msg.content
-                    for msg in recent_messages[:-1]  # 마지막 메시지(현재 메시지) 제외
+                    for msg in recent_messages[1:]  # 첫 번째 메시지(현재 메시지) 제외
                 ]
                 if previous_texts:
                     analysis_text = " ".join(previous_texts) + " " + request.text
