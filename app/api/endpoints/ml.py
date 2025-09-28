@@ -171,7 +171,19 @@ async def analyze_symptom(
             )
 
         # 임계치 이상일 경우에만 DB 저장
+        from app.models.medical import Disease
         from app.models.model_inference import ModelInferenceResult
+
+        # 질병 ID 매핑
+        first_disease_id = None
+        if top_disease.get("label"):
+            disease = (
+                db.query(Disease)
+                .filter(Disease.name == top_disease.get("label"))
+                .first()
+            )
+            if disease:
+                first_disease_id = disease.id
 
         inference_result = ModelInferenceResult(
             user_id=current_user.id,
@@ -179,7 +191,7 @@ async def analyze_symptom(
             chat_message_id=None,  # 채팅 메시지와 연결되지 않은 경우
             input_text=analysis_text,  # 합친 텍스트 사용
             processed_text=ml_result.get("processed_text", ""),
-            first_disease_id=None,  # 질병 ID는 나중에 매핑 필요
+            first_disease_id=first_disease_id,  # 질병 ID 매핑
             first_disease_score=top_disease.get("score", 0.0),
             first_disease_label=top_disease.get("label"),
             second_disease_id=None,

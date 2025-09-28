@@ -574,3 +574,78 @@ def list_disease_equipment(
 def list_hospital_types(db: Session = Depends(get_db)):
     rows = MedicalService.get_all_hospital_types(db)
     return [HospitalTypeResponse.from_orm(x) for x in rows]
+
+
+@router.get("/recommendations", response_model=List[HospitalRecommendationResponse])
+def get_user_recommendations(
+    *,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    limit: Optional[int] = Query(10, description="조회할 추천 결과 수"),
+    offset: Optional[int] = Query(0, description="조회 시작 위치"),
+) -> List[HospitalRecommendationResponse]:
+    """
+    사용자의 모든 병원 추천 결과 조회
+    """
+    try:
+        recommendations = HospitalRecommendationService.get_user_recommendations(
+            db=db,
+            user_id=str(current_user.id),
+            limit=limit or 10,
+            offset=offset or 0,
+        )
+        return recommendations
+
+    except Exception as e:
+        logger.error(f"사용자 추천 결과 조회 중 오류: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="추천 결과를 조회하는 중 오류가 발생했습니다.",
+        )
+
+
+@router.get(
+    "/recommendations/inference/{inference_result_id}",
+    response_model=List[HospitalRecommendationResponse],
+)
+def get_recommendations_by_inference(
+    *,
+    db: Session = Depends(get_db),
+    inference_result_id: int,
+    current_user: User = Depends(get_current_user),
+    sort_by: Optional[str] = Query(
+        None, description="정렬 기준: distance, equipment, department"
+    ),
+) -> List[HospitalRecommendationResponse]:
+    """
+    특정 추론 결과의 병원 추천 결과 조회
+
+    - 기본값: 점수순 정렬 (rank 기준)
+    - sort_by 옵션:
+      - distance: 거리순 (가까운 순)
+      - equipment: 장비 매칭순 (높은 순)
+      - department: 진료과 매칭순 (높은 순)
+    """
+    try:
+        recommendations = (
+            HospitalRecommendationService.get_recommendations_by_inference(
+                db=db,
+                inference_result_id=inference_result_id,
+                user_id=str(current_user.id),
+                sort_by=sort_by,
+            )
+        )
+        return recommendations
+
+    except ValueError as e:
+        logger.warning(f"Invalid parameter in recommendation query: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="해당 추론 결과를 찾을 수 없습니다.",
+        )
+    except Exception as e:
+        logger.error(f"추론 결과별 추천 조회 중 오류: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="추천 결과를 조회하는 중 오류가 발생했습니다.",
+        )
