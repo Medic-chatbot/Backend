@@ -498,6 +498,7 @@ class HospitalRecommendationService:
         for rec in recommendations:
             # 추론 결과에서 질병 정보 가져오기
             disease_name = "알 수 없음"
+            final_disease = {"id": None, "name": "알 수 없음", "description": None}
             if rec.inference_result and rec.inference_result.first_disease_id:
                 disease = (
                     db.query(Disease)
@@ -506,6 +507,11 @@ class HospitalRecommendationService:
                 )
                 if disease:
                     disease_name = disease.name
+                    final_disease = {
+                        "id": disease.id,
+                        "name": disease.name,
+                        "description": disease.description,
+                    }
 
             result.append(
                 {
@@ -516,6 +522,7 @@ class HospitalRecommendationService:
                     "hospital_address": rec.hospital.address,
                     "hospital_type_name": rec.hospital.hospital_type_name,
                     "disease_name": disease_name,
+                    "final_disease": final_disease,
                     "distance": rec.distance,
                     "rank": rec.rank,
                     "recommendation_score": rec.recommendation_score,
@@ -594,6 +601,7 @@ class HospitalRecommendationService:
 
         # 질병 정보 가져오기
         disease_name = "알 수 없음"
+        final_disease = {"id": None, "name": "알 수 없음", "description": None}
         if inference_result.first_disease_id:
             disease = (
                 db.query(Disease)
@@ -602,6 +610,11 @@ class HospitalRecommendationService:
             )
             if disease:
                 disease_name = disease.name
+                final_disease = {
+                    "id": disease.id,
+                    "name": disease.name,
+                    "description": disease.description,
+                }
 
         # 응답 데이터 구성
         result = []
@@ -615,6 +628,7 @@ class HospitalRecommendationService:
                     "hospital_address": rec.hospital.address,
                     "hospital_type_name": rec.hospital.hospital_type_name,
                     "disease_name": disease_name,
+                    "final_disease": final_disease,
                     "distance": rec.distance,
                     "rank": rec.rank,
                     "recommendation_score": rec.recommendation_score,
