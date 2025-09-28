@@ -28,6 +28,7 @@ from app.schemas.medical import (
     HospitalTypeResponse,
     MedicalEquipmentCategoryResponse,
     MedicalEquipmentSubcategoryResponse,
+    RecommendedHospitalResponse,
 )
 from app.services.hospital_recommendation_service import HospitalRecommendationService
 from app.services.medical_service import MedicalService
@@ -576,14 +577,14 @@ def list_hospital_types(db: Session = Depends(get_db)):
     return [HospitalTypeResponse.from_orm(x) for x in rows]
 
 
-@router.get("/recommendations", response_model=List[HospitalRecommendationResponse])
+@router.get("/recommendations", response_model=List[RecommendedHospitalResponse])
 def get_user_recommendations(
     *,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     limit: Optional[int] = Query(10, description="조회할 추천 결과 수"),
     offset: Optional[int] = Query(0, description="조회 시작 위치"),
-) -> List[HospitalRecommendationResponse]:
+) -> List[RecommendedHospitalResponse]:
     """
     사용자의 모든 병원 추천 결과 조회
     """
@@ -606,7 +607,7 @@ def get_user_recommendations(
 
 @router.get(
     "/recommendations/inference/{inference_result_id}",
-    response_model=List[HospitalRecommendationResponse],
+    response_model=List[RecommendedHospitalResponse],
 )
 def get_recommendations_by_inference(
     *,
@@ -616,7 +617,7 @@ def get_recommendations_by_inference(
     sort_by: Optional[str] = Query(
         None, description="정렬 기준: distance, equipment, department"
     ),
-) -> List[HospitalRecommendationResponse]:
+) -> List[RecommendedHospitalResponse]:
     """
     특정 추론 결과의 병원 추천 결과 조회
 

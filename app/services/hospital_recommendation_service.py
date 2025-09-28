@@ -515,21 +515,20 @@ class HospitalRecommendationService:
 
             result.append(
                 {
-                    "id": rec.id,
-                    "inference_result_id": rec.inference_result_id,
-                    "hospital_id": rec.hospital_id,
-                    "hospital_name": rec.hospital.name,
-                    "hospital_address": rec.hospital.address,
+                    "id": rec.hospital_id,  # RecommendedHospitalResponse는 hospital_id를 id로 사용
+                    "name": rec.hospital.name,
+                    "address": rec.hospital.address,
                     "hospital_type_name": rec.hospital.hospital_type_name,
-                    "disease_name": disease_name,
-                    "final_disease": final_disease,
+                    "phone": rec.hospital.phone,
                     "distance": rec.distance,
                     "rank": rec.rank,
                     "recommendation_score": rec.recommendation_score,
                     "department_match": rec.department_match,
                     "equipment_match": rec.equipment_match,
                     "recommended_reason": rec.recommended_reason,
-                    "created_at": rec.created_at,
+                    "specialist_count": None,  # 현재 데이터에 없음
+                    "equipment_details": None,  # 현재 데이터에 없음
+                    "score_breakdown": None,  # 현재 데이터에 없음
                 }
             )
 
@@ -621,21 +620,20 @@ class HospitalRecommendationService:
         for rec in recommendations:
             result.append(
                 {
-                    "id": rec.id,
-                    "inference_result_id": rec.inference_result_id,
-                    "hospital_id": rec.hospital_id,
-                    "hospital_name": rec.hospital.name,
-                    "hospital_address": rec.hospital.address,
+                    "id": rec.hospital_id,  # RecommendedHospitalResponse는 hospital_id를 id로 사용
+                    "name": rec.hospital.name,
+                    "address": rec.hospital.address,
                     "hospital_type_name": rec.hospital.hospital_type_name,
-                    "disease_name": disease_name,
-                    "final_disease": final_disease,
+                    "phone": rec.hospital.phone,
                     "distance": rec.distance,
                     "rank": rec.rank,
                     "recommendation_score": rec.recommendation_score,
                     "department_match": rec.department_match,
                     "equipment_match": rec.equipment_match,
                     "recommended_reason": rec.recommended_reason,
-                    "created_at": rec.created_at,
+                    "specialist_count": None,  # 현재 데이터에 없음
+                    "equipment_details": None,  # 현재 데이터에 없음
+                    "score_breakdown": None,  # 현재 데이터에 없음
                 }
             )
 
