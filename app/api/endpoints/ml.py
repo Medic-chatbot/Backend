@@ -245,7 +245,7 @@ async def analyze_symptom(
         inference_result = ModelInferenceResult(
             user_id=current_user.id,
             chat_room_id=request.chat_room_id,
-            chat_message_id=None,  # 채팅 메시지와 연결되지 않은 경우
+            chat_message_id=user_message.id if user_message else None,  # 사용자 메시지와 연결
             input_text=analysis_text,  # 합친 텍스트 사용
             processed_text=ml_result.get("processed_text", ""),
             first_disease_id=first_disease_id,  # 질병 ID 매핑
