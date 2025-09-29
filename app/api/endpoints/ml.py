@@ -112,6 +112,9 @@ async def analyze_symptom(
                     detail="해당 채팅방에 접근할 권한이 없습니다.",
                 )
 
+        # 먼저 입력 텍스트를 정리
+        cleaned_input_text = clean_symptom_text(request.text)
+
         # 채팅방이 지정된 경우 사용자 메시지 저장
         user_message = None
         if request.chat_room_id:
@@ -129,8 +132,6 @@ async def analyze_symptom(
                 )
 
         # 분석할 텍스트 결정 (채팅방 컨텍스트 포함)
-        # 먼저 입력 텍스트를 정리
-        cleaned_input_text = clean_symptom_text(request.text)
         analysis_text = cleaned_input_text
 
         if request.chat_room_id and request.use_context:
