@@ -154,3 +154,35 @@ class ChatService:
     def delete_chat_room(db: Session, room_id: int) -> bool:
         """채팅방 삭제 (비활성화)"""
         return ChatService.deactivate_chat_room(db, room_id)
+
+    @staticmethod
+    def start_new_symptom_session(db: Session, room_id: int, message_id: int) -> bool:
+        """새로운 증상 세션 시작"""
+        chat_room = ChatService.get_chat_room(db, room_id)
+        if not chat_room:
+            return False
+
+        setattr(chat_room, "current_session_start_message_id", message_id)
+        db.commit()
+        return True
+
+    @staticmethod
+    def get_session_user_messages(
+        db: Session, room_id: int, limit: int = 10
+    ) -> List[ChatMessage]:
+        """현재 세션의 사용자 메시지들 조회"""
+        chat_room = ChatService.get_chat_room(db, room_id)
+        if not chat_room or not chat_room.current_session_start_message_id:
+            return []
+
+        return (
+            db.query(ChatMessage)
+            .filter(
+                ChatMessage.chat_room_id == room_id,
+                ChatMessage.message_type == "USER",
+                ChatMessage.id >= chat_room.current_session_start_message_id,
+            )
+            .order_by(ChatMessage.created_at.asc())
+            .limit(limit)
+            .all()
+        )

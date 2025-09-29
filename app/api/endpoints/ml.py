@@ -23,6 +23,8 @@ class SymptomAnalysisRequest(BaseModel):
 
     text: str
     chat_room_id: Optional[int] = None
+    use_context: bool = True  # 이전 메시지와 결합 여부 (기본값: True)
+    start_new_session: bool = False  # 새로운 증상 세션 시작 여부 (기본값: False)
 
 
 class SymptomAnalysisWithRetryRequest(BaseModel):
@@ -75,38 +77,74 @@ async def analyze_symptom(
                     detail="해당 채팅방에 접근할 권한이 없습니다.",
                 )
 
-        # 채팅방이 지정된 경우 "분석 중" 메시지 저장
+        # 채팅방이 지정된 경우 사용자 메시지 저장
+        user_message = None
         if request.chat_room_id:
             from app.services.chat_service import ChatService
 
-            analyzing_message = ChatService.create_chat_message(
-                db, request.chat_room_id, "BOT", "분석 중입니다..."
-            )
-
-            # 사용자 메시지 먼저 저장 (이전 메시지 조회를 위해)
+            # 사용자 메시지 저장
             user_message = ChatService.create_chat_message(
                 db, request.chat_room_id, "USER", request.text
             )
 
+            # 새로운 세션 시작 요청 시 세션 포인터 업데이트
+            if request.start_new_session:
+                ChatService.start_new_symptom_session(
+                    db, request.chat_room_id, user_message.id
+                )
+
         # 분석할 텍스트 결정 (채팅방 컨텍스트 포함)
         analysis_text = request.text
 
-        if request.chat_room_id:
-            # 최근 사용자 메시지들을 가져와서 합치기
+        if request.chat_room_id and request.use_context:
             from app.services.chat_service import ChatService
 
-            recent_messages = ChatService.get_recent_user_messages(
-                db, request.chat_room_id, limit=5
-            )
-
-            if recent_messages:
-                # 기존 메시지들과 새 메시지 합치기 (시간순으로 정렬)
-                previous_texts = [
-                    msg.content
-                    for msg in reversed(recent_messages[1:])  # 시간순으로 정렬하고 현재 메시지 제외
-                ]
-                if previous_texts:
-                    analysis_text = " ".join(previous_texts) + " " + request.text
+            if request.start_new_session:
+                # 새 세션 시작: 현재 메시지만 사용
+                analysis_text = request.text
+            else:
+                # 기존 세션 또는 전체 컨텍스트 사용
+                if hasattr(ChatService, "get_session_user_messages"):
+                    # 세션 기반 메시지 조회 시도
+                    session_messages = ChatService.get_session_user_messages(
+                        db, request.chat_room_id, limit=5
+                    )
+                    if session_messages:
+                        # 현재 메시지 제외하고 이전 세션 메시지들과 결합
+                        previous_texts = [
+                            msg.content
+                            for msg in session_messages[:-1]  # 마지막(현재) 메시지 제외
+                        ]
+                        if previous_texts:
+                            analysis_text = (
+                                " ".join(previous_texts) + " " + request.text
+                            )
+                    else:
+                        # 세션 메시지가 없으면 전체 메시지에서 조회
+                        recent_messages = ChatService.get_recent_user_messages(
+                            db, request.chat_room_id, limit=5
+                        )
+                        if recent_messages:
+                            previous_texts = [
+                                msg.content for msg in reversed(recent_messages[1:])
+                            ]
+                            if previous_texts:
+                                analysis_text = (
+                                    " ".join(previous_texts) + " " + request.text
+                                )
+                else:
+                    # 기존 로직 사용 (하위 호환)
+                    recent_messages = ChatService.get_recent_user_messages(
+                        db, request.chat_room_id, limit=5
+                    )
+                    if recent_messages:
+                        previous_texts = [
+                            msg.content for msg in reversed(recent_messages[1:])
+                        ]
+                        if previous_texts:
+                            analysis_text = (
+                                " ".join(previous_texts) + " " + request.text
+                            )
 
         # ML 서비스 호출 (합친 텍스트로)
         ml_result = await ml_client.analyze_symptom(
@@ -121,7 +159,7 @@ async def analyze_symptom(
                 detail="ML 서비스에 연결할 수 없습니다",
             )
 
-        # 채팅방이 지정된 경우 봇 응답 저장
+        # 채팅방이 지정된 경우 봇 응답 저장 (임계치 이상일 때만)
         if request.chat_room_id:
             from app.services.chat_service import ChatService
 
@@ -155,6 +193,15 @@ async def analyze_symptom(
 
         # 임계치 이하일 경우 증상 추가 요구 응답 (DB 저장 없음)
         if not confidence_threshold_met:
+            # 채팅방이 지정된 경우 "증상 추가 요구" BOT 메시지 저장
+            if request.chat_room_id:
+                from app.services.chat_service import ChatService
+
+                threshold_message = f"현재 증상으로는 정확한 진단이 어렵습니다. (신뢰도: {top_score:.1%})\n더 자세한 증상을 추가로 입력해주세요."
+                ChatService.create_chat_message(
+                    db, request.chat_room_id, "BOT", threshold_message
+                )
+
             return SymptomAnalysisResponse(
                 original_text=ml_result.get("original_text", analysis_text),
                 processed_text=ml_result.get("processed_text", ""),
@@ -174,16 +221,26 @@ async def analyze_symptom(
         from app.models.medical import Disease
         from app.models.model_inference import ModelInferenceResult
 
-        # 질병 ID 매핑
-        first_disease_id = None
-        if top_disease.get("label"):
-            disease = (
-                db.query(Disease)
-                .filter(Disease.name == top_disease.get("label"))
-                .first()
-            )
-            if disease:
-                first_disease_id = disease.id
+        # 질병 ID 매핑 (1, 2, 3순위 모두)
+        def get_disease_id(disease_label):
+            if disease_label:
+                disease = (
+                    db.query(Disease).filter(Disease.name == disease_label).first()
+                )
+                return disease.id if disease else None
+            return None
+
+        first_disease_id = get_disease_id(top_disease.get("label"))
+        second_disease_id = get_disease_id(
+            disease_classifications[1].get("label")
+            if len(disease_classifications) > 1
+            else None
+        )
+        third_disease_id = get_disease_id(
+            disease_classifications[2].get("label")
+            if len(disease_classifications) > 2
+            else None
+        )
 
         inference_result = ModelInferenceResult(
             user_id=current_user.id,
@@ -194,7 +251,7 @@ async def analyze_symptom(
             first_disease_id=first_disease_id,  # 질병 ID 매핑
             first_disease_score=top_disease.get("score", 0.0),
             first_disease_label=top_disease.get("label"),
-            second_disease_id=None,
+            second_disease_id=second_disease_id,  # 2순위 질병 ID 매핑
             second_disease_score=(
                 disease_classifications[1].get("score", 0.0)
                 if len(disease_classifications) > 1
@@ -205,7 +262,7 @@ async def analyze_symptom(
                 if len(disease_classifications) > 1
                 else None
             ),
-            third_disease_id=None,
+            third_disease_id=third_disease_id,  # 3순위 질병 ID 매핑
             third_disease_score=(
                 disease_classifications[2].get("score", 0.0)
                 if len(disease_classifications) > 2

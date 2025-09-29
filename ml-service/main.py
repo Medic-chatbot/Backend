@@ -39,7 +39,7 @@ DEVICE = (
 API_SERVICE_URL = os.getenv("API_SERVICE_URL", "http://localhost:8000")
 # 추천 트리거 임계치/기본 limit 환경변수
 RECOMMEND_CONFIDENCE_THRESHOLD = float(
-    os.getenv("RECOMMEND_CONFIDENCE_THRESHOLD", "0.8")
+    os.getenv("RECOMMEND_CONFIDENCE_THRESHOLD", "0.9")
 )
 DEFAULT_RECOMMEND_LIMIT = int(os.getenv("RECOMMEND_LIMIT", "3"))
 
@@ -325,7 +325,7 @@ async def full_analysis(
     완전한 분석: 증상 분석 + (임계치 기반) 병원 추천
 
     - 증상 분석을 먼저 수행
-    - 최상위 질환 신뢰도(confidence)가 0.8 이상이고 chat_room_id가 있을 때만
+    - 최상위 질환 신뢰도(confidence)가 0.9 이상이고 chat_room_id가 있을 때만
       병원 추천 API를 호출하여 결과를 포함
     """
     try:

@@ -47,6 +47,8 @@ class ChatRoom(Base):
     inference_results = relationship("ModelInferenceResult", back_populates="chat_room")
     # 추천 컨텍스트 경계: 직전 추천을 유발한 USER 메시지 ID
     last_recommendation_message_id = Column(Integer, nullable=True)
+    # 현재 진행 중인 증상 세션의 시작 메시지 ID
+    current_session_start_message_id = Column(Integer, nullable=True)
 
 
 class ChatMessage(Base):
