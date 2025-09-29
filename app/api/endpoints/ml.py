@@ -52,6 +52,41 @@ class SymptomAnalysisResponse(BaseModel):
     confidence_threshold: Optional[float] = None  # 현재 임계치 값
 
 
+def clean_symptom_text(text: str) -> str:
+    """
+    프론트엔드에서 오염된 텍스트를 정리하는 함수
+
+    제거할 패턴들:
+    - 0_USER_, 1_USER_ 등의 prefix
+    - "메시지를 받았습니다. 증상 분석을 위해 잠시만 기다려주세요."
+    - "분석 중입니다..."
+    - 기타 시스템 메시지들
+    """
+    import re
+
+    if not text:
+        return text
+
+    # 패턴들을 정의
+    patterns_to_remove = [
+        r"\d+_USER_",  # 0_USER_, 1_USER_ 등
+        r"메시지를 받았습니다\.?\s*증상 분석을 위해 잠시만 기다려주세요\.?",
+        r"분석 중입니다\.{0,3}",
+        r"증상 분석을 위해 잠시만 기다려주세요\.?",
+        r"메시지를 받았습니다\.?",
+        r"더 자세한 증상을 설명해주세요\.?",
+    ]
+
+    cleaned_text = text
+    for pattern in patterns_to_remove:
+        cleaned_text = re.sub(pattern, "", cleaned_text, flags=re.IGNORECASE)
+
+    # 여러 공백을 하나로 정리하고 앞뒤 공백 제거
+    cleaned_text = re.sub(r"\s+", " ", cleaned_text).strip()
+
+    return cleaned_text
+
+
 @router.post("/analyze-symptom", response_model=SymptomAnalysisResponse)
 async def analyze_symptom(
     request: SymptomAnalysisRequest,
@@ -82,9 +117,9 @@ async def analyze_symptom(
         if request.chat_room_id:
             from app.services.chat_service import ChatService
 
-            # 사용자 메시지 저장
+            # 사용자 메시지 저장 (텍스트 정리 후)
             user_message = ChatService.create_chat_message(
-                db, request.chat_room_id, "USER", request.text
+                db, request.chat_room_id, "USER", cleaned_input_text
             )
 
             # 새로운 세션 시작 요청 시 세션 포인터 업데이트
@@ -94,14 +129,16 @@ async def analyze_symptom(
                 )
 
         # 분석할 텍스트 결정 (채팅방 컨텍스트 포함)
-        analysis_text = request.text
+        # 먼저 입력 텍스트를 정리
+        cleaned_input_text = clean_symptom_text(request.text)
+        analysis_text = cleaned_input_text
 
         if request.chat_room_id and request.use_context:
             from app.services.chat_service import ChatService
 
             if request.start_new_session:
-                # 새 세션 시작: 현재 메시지만 사용
-                analysis_text = request.text
+                # 새 세션 시작: 현재 메시지만 사용 (이미 정리된 텍스트)
+                analysis_text = cleaned_input_text
             else:
                 # 기존 세션 또는 전체 컨텍스트 사용
                 if hasattr(ChatService, "get_session_user_messages"):
@@ -112,12 +149,12 @@ async def analyze_symptom(
                     if session_messages:
                         # 현재 메시지 제외하고 이전 세션 메시지들과 결합
                         previous_texts = [
-                            msg.content
+                            clean_symptom_text(msg.content)  # 이전 메시지들도 정리
                             for msg in session_messages[:-1]  # 마지막(현재) 메시지 제외
                         ]
                         if previous_texts:
                             analysis_text = (
-                                " ".join(previous_texts) + " " + request.text
+                                " ".join(previous_texts) + " " + cleaned_input_text
                             )
                     else:
                         # 세션 메시지가 없으면 전체 메시지에서 조회
@@ -126,11 +163,12 @@ async def analyze_symptom(
                         )
                         if recent_messages:
                             previous_texts = [
-                                msg.content for msg in reversed(recent_messages[1:])
+                                clean_symptom_text(msg.content)  # 전체 메시지들도 정리
+                                for msg in reversed(recent_messages[1:])
                             ]
                             if previous_texts:
                                 analysis_text = (
-                                    " ".join(previous_texts) + " " + request.text
+                                    " ".join(previous_texts) + " " + cleaned_input_text
                                 )
                 else:
                     # 기존 로직 사용 (하위 호환)
@@ -139,11 +177,12 @@ async def analyze_symptom(
                     )
                     if recent_messages:
                         previous_texts = [
-                            msg.content for msg in reversed(recent_messages[1:])
+                            clean_symptom_text(msg.content)  # 기존 로직에서도 정리
+                            for msg in reversed(recent_messages[1:])
                         ]
                         if previous_texts:
                             analysis_text = (
-                                " ".join(previous_texts) + " " + request.text
+                                " ".join(previous_texts) + " " + cleaned_input_text
                             )
 
         # ML 서비스 호출 (합친 텍스트로)
@@ -245,7 +284,9 @@ async def analyze_symptom(
         inference_result = ModelInferenceResult(
             user_id=current_user.id,
             chat_room_id=request.chat_room_id,
-            chat_message_id=user_message.id if user_message else None,  # 사용자 메시지와 연결
+            chat_message_id=(
+                user_message.id if user_message else None
+            ),  # 사용자 메시지와 연결
             input_text=analysis_text,  # 합친 텍스트 사용
             processed_text=ml_result.get("processed_text", ""),
             first_disease_id=first_disease_id,  # 질병 ID 매핑
@@ -316,9 +357,10 @@ async def get_full_analysis(
     전체 분석: 증상 분석 + 병원 추천
     """
     try:
-        # ML 서비스 호출
+        # ML 서비스 호출 (텍스트 정리 후)
+        cleaned_text = clean_symptom_text(request.text)
         ml_result = await ml_client.get_full_analysis(
-            text=request.text,
+            text=cleaned_text,
             chat_room_id=request.chat_room_id,
             authorization=authorization,
         )
@@ -346,7 +388,7 @@ async def get_full_analysis(
             user_id=current_user.id,
             chat_room_id=request.chat_room_id,
             chat_message_id=None,  # 채팅 메시지와 연결되지 않은 경우
-            input_text=request.text,
+            input_text=clean_symptom_text(request.text),
             processed_text=symptom_analysis.get("processed_text", ""),
             first_disease_id=None,  # 질병 ID는 나중에 매핑 필요
             first_disease_score=top_disease.get("score", 0.0),

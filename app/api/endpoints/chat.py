@@ -214,9 +214,12 @@ async def send_message(
                 detail="해당 채팅방에 접근할 권한이 없습니다.",
             )
 
-        # 사용자 메시지 저장
+        # 사용자 메시지 저장 (텍스트 정리 후)
+        from app.api.endpoints.ml import clean_symptom_text
+
+        cleaned_content = clean_symptom_text(message_data.content)
         user_message = ChatService.create_chat_message(
-            db, room_id, "USER", message_data.content
+            db, room_id, "USER", cleaned_content
         )
 
         # 간단한 봇 응답 (프론트엔드에서 별도 API 호출하므로)
@@ -342,9 +345,12 @@ async def websocket_endpoint(
                 if not message_content:
                     continue
 
-                # 사용자 메시지 저장
+                # 사용자 메시지 저장 (텍스트 정리 후)
+                from app.api.endpoints.ml import clean_symptom_text
+
+                cleaned_message_content = clean_symptom_text(message_content)
                 user_message = ChatService.create_chat_message(
-                    db, room_id, "USER", message_content
+                    db, room_id, "USER", cleaned_message_content
                 )
 
                 # 사용자 메시지 전송
