@@ -39,7 +39,7 @@ class Settings(BaseSettings):
 
     # CORS 설정 (환경변수에서 로딩, 콤마로 구분)
     ALLOWED_HOSTS_STRING: str = (
-        "http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000,http://127.0.0.1:5173,http://medic.yoon.today,https://medic.yoon.today"
+        "http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000,http://127.0.0.1:5173"
     )
 
     @property
@@ -51,7 +51,7 @@ class Settings(BaseSettings):
     # 서비스 URL 설정 (환경변수에서 로딩)
     ML_SERVICE_URL: str = "http://ml-service:8001"  # Docker Compose 로컬용
     API_SERVICE_URL: str = "http://localhost:8000"  # 로컬 개발용
-    ALB_HOST: str = "medic.yoon.today"  # 프로덕션 ALB 주소
+    ALB_HOST: str = "localhost"  # 개발용 기본값 (프로덕션에서는 환경변수로 설정)
 
     # 추천 관련 공통 설정(로깅/분기 통일성)
     RECOMMEND_CONFIDENCE_THRESHOLD: float = 0.8
