@@ -55,7 +55,7 @@ class SymptomAnalysisResponse(BaseModel):
 def clean_symptom_text(text: str) -> str:
     """
     프론트엔드에서 오염된 텍스트를 정리하는 함수
-    
+
     제거할 패턴들:
     - 0_USER_, 1_USER_ 등의 prefix
     - "메시지를 받았습니다. 증상 분석을 위해 잠시만 기다려주세요."
@@ -63,26 +63,27 @@ def clean_symptom_text(text: str) -> str:
     - 기타 시스템 메시지들
     """
     import re
-    
+
     if not text:
         return text
-    
+
     # 패턴들을 정의
     patterns_to_remove = [
-        r'\d+_USER_',  # 0_USER_, 1_USER_ 등
-        r'메시지를 받았습니다\.?\s*증상 분석을 위해 잠시만 기다려주세요\.?',
-        r'분석 중입니다\.{0,3}',
-        r'증상 분석을 위해 잠시만 기다려주세요\.?',
-        r'메시지를 받았습니다\.?',
+        r"\d+_USER_",  # 0_USER_, 1_USER_ 등
+        r"메시지를 받았습니다\.?\s*증상 분석을 위해 잠시만 기다려주세요\.?",
+        r"분석 중입니다\.{0,3}",
+        r"증상 분석을 위해 잠시만 기다려주세요\.?",
+        r"메시지를 받았습니다\.?",
+        r"더 자세한 증상을 설명해주세요\.?",
     ]
-    
+
     cleaned_text = text
     for pattern in patterns_to_remove:
-        cleaned_text = re.sub(pattern, '', cleaned_text, flags=re.IGNORECASE)
-    
+        cleaned_text = re.sub(pattern, "", cleaned_text, flags=re.IGNORECASE)
+
     # 여러 공백을 하나로 정리하고 앞뒤 공백 제거
-    cleaned_text = re.sub(r'\s+', ' ', cleaned_text).strip()
-    
+    cleaned_text = re.sub(r"\s+", " ", cleaned_text).strip()
+
     return cleaned_text
 
 
