@@ -131,7 +131,7 @@ class MLServiceClient:
 
         # 신뢰도에 따른 메시지 조정
         confidence_msg = ""
-        if confidence >= 0.9:
+        if confidence >= 0.93:
             confidence_msg = "높은 확률로"
         elif confidence >= 0.77:
             confidence_msg = "어느 정도 확률로"

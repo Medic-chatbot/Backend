@@ -48,7 +48,7 @@ class Settings(BaseSettings):
     API_SERVICE_URL: str = "http://localhost:8000"
     ALB_HOST: str = ""
     # 추천 관련 공통 설정(로깅/분기 통일성)
-    RECOMMEND_CONFIDENCE_THRESHOLD: float = 0.9  # .env에서 로드
+    RECOMMEND_CONFIDENCE_THRESHOLD: float = 0.93  # .env에서 로드
     RECOMMEND_LIMIT: int = 3  # .env에서 로드
     SYMPTOM_HISTORY_UTTERANCES: int = 5  # .env에서 로드
 
